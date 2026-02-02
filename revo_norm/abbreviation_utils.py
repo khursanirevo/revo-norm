@@ -547,6 +547,10 @@ def expand_abbreviations(text: str, language: str = "en") -> str:
     """
     Expand abbreviations and short forms in text.
 
+    Note: Single-letter abbreviations are NOT expanded to avoid breaking
+    domain terms like "ML", "LLM", "meter L", etc. Only abbreviations
+    with 2+ characters are expanded.
+
     Args:
         text: Input text containing abbreviations
         language: Language code ('en' for English, 'ms' for Malay)
@@ -572,6 +576,27 @@ def expand_abbreviations(text: str, language: str = "en") -> str:
 
     def replace_abbr(match):
         abbr = match.group(0)
+
+        # Skip single-letter abbreviations (too ambiguous, breaks domain terms)
+        # This prevents "L" in "ML", "LLM" from being expanded to "liter"
+        if len(abbr) <= 1:
+            # Exception: Allow if preceded by a number (e.g., "5m", "2.3B", "10K")
+            start = match.start()
+            # Look back up to 10 characters for a number
+            preceding_text = text[max(0, start - 10):start].strip()
+            # Check if preceding text ends with a digit (number notation)
+            if preceding_text and preceding_text[-1].isdigit():
+                # This is likely number notation (5m, 2.3B, 10K), allow expansion
+                pass
+            else:
+                # Single letter not preceded by number - skip it
+                return abbr
+
+        # Skip short all-uppercase abbreviations (likely acronyms)
+        # These are typically domain terms: ML, AI, API, CPU, GPU, RAM, etc.
+        if len(abbr) <= 3 and abbr.isupper() and abbr.isalpha():
+            return abbr
+
         # Preserve case by looking up the lowercase version
         return mappings.get(abbr.lower(), abbr)
 
