@@ -63,6 +63,17 @@ from revo_norm.normalizer_ms import normalize_malay as normalize_malay
 
 # Number to words (Malay)
 from revo_norm.num2word import to_cardinal, to_currency, to_ordinal, to_year
+
+# TTS-specific utilities
+from revo_norm.tts_utils import (
+    add_random_commas,
+    normalize_problematic_chars,
+    parse_sound_word_field,
+    smart_remove_sound_words,
+    split_repetitive_sequences,
+)
+
+# Main text normalizer
 from revo_norm.text_normalizer import (
     email_to_spoken,
     expand_capitalized_initialisms,
@@ -118,4 +129,10 @@ __all__ = [
     "normalize_measurements",
     "normalize_hari_bulan_text",
     "normalize_hijri_years",
+    # TTS-specific utilities
+    "normalize_problematic_chars",
+    "parse_sound_word_field",
+    "smart_remove_sound_words",
+    "split_repetitive_sequences",
+    "add_random_commas",
 ]

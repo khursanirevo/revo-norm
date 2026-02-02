@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from revo_norm.abbreviation_utils import expand_abbreviations
 from revo_norm.currency_utils import CURRENCY_K_SUFFIX_PATTERN, expand_currency_k_suffix
+from revo_norm.pronunciation_mappings import apply_pronunciation_mappings, remove_preservation_markers
 from revo_norm.malaya_inspired_utils import (
     normalize_elongated_text,
     normalize_fractions,
@@ -471,7 +472,12 @@ def normalize_text(
     text = convert_emails_to_spoken(text, effective_language)
     text = convert_urls_to_spoken(text)
 
-    # Apply pronunciation overrides
+    # Apply pronunciation mappings FIRST (highest priority)
+    # This must happen before acronym/abbreviation expansion to prevent
+    # terms like "JSON" from being split into "J S O N"
+    text = apply_pronunciation_mappings(text, effective_language)
+
+    # Apply pronunciation overrides (legacy, for backward compatibility)
     if apply_pronunciation_overrides_flag:
         text = apply_pronunciation_overrides(text)
 
@@ -526,6 +532,11 @@ def normalize_text(
     # Apply special character replacements
     text = special_replace(text, effective_language)
 
+    # Remove preservation markers from pronunciation mappings
+    # This must be done LAST to prevent acronym/abbreviation expansion
+    # from interfering with preserved terms
+    text = remove_preservation_markers(text)
+
     return text
 
 
@@ -563,6 +574,7 @@ def _normalize_with_entity_extraction(
         always_extract = [
             EntityType.URL,
             EntityType.EMAIL,
+            EntityType.CURRENCY,  # Protect currency from acronym/abbreviation expansion
             EntityType.TEMPERATURE,
             EntityType.FRACTION,
             EntityType.X_KALI,
@@ -587,9 +599,13 @@ def _normalize_with_entity_extraction(
         # Combine always + conditionally extracted entities
         entities_to_extract = enabled_entities + always_extract
 
-        # Phase 1: Extract entities
+        # Phase 1: Extract entities and apply pronunciation mappings
         extractor = EntityExtractor()
         protected_text, entities = extractor.extract(text, entities_to_extract)
+
+        # Apply pronunciation mappings BEFORE processing non-entity text
+        # This ensures terms like "JSON" → "jay son" and preserves acronyms like "ML"
+        protected_text = apply_pronunciation_mappings(protected_text, effective_language)
 
         # Phase 2: Process non-entity text (text quality features only, NO basic normalization)
         # Basic normalization will be applied to entities during restoration
@@ -630,6 +646,9 @@ def _normalize_with_entity_extraction(
         # Phase 3: Restore entities as spoken form
         # Entities get converted directly without going through basic normalizer
         result = extractor.restore(protected_text, effective_language)
+
+        # Remove preservation markers from pronunciation mappings
+        result = remove_preservation_markers(result)
 
         return result
 
