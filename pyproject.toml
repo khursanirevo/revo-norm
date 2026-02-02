@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "revo-norm"
-version = "0.1.0"
+version = "0.2.0-dev"
 description = "A text normalization library for English and Malay (Bahasa Melayu) TTS applications"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -35,9 +35,7 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "black>=23.0",
-    "flake8>=6.0",
-    "mypy>=1.0",
+    "ruff>=0.8.0",
 ]
 
 [project.urls]
@@ -46,31 +44,106 @@ Documentation = "https://github.com/yourusername/revo-norm#readme"
 Repository = "https://github.com/yourusername/revo-norm"
 "Bug Tracker" = "https://github.com/yourusername/revo-norm/issues"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["revo_norm*"]
+[tool.hatch.build.targets.wheel]
+packages = ["revo_norm"]
 
-[tool.black]
+[tool.hatch.build.targets.wheel.shared-options]
+zip-safe = false
+
+[tool.ruff]
+# Target Python version and code style
+target-version = "py39"
 line-length = 100
-target-version = ["py38", "py39", "py310", "py311", "py312"]
+indent-width = 4
 
-[tool.mypy]
+# Directories to scan
+src = ["revo_norm", "tests"]
+
+# Exclude directories from scanning
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "*.egg-info",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Enable rules by category
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "B008",    # do not perform function calls in argument defaults
+    "SIM105",  # Use `contextlib.suppress` instead of contextlib.suppress
+    "TCH002",  # Type-only lamdas
+    "UP037",   # Remove quotes from type annotation
+]
+
+# Allow autofix for safe rules
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.format]
+# Format configuration
+indent-style = "space"
+quote-style = "double"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ty]
+# Type checking configuration
+name = "revo-norm"
 python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-ignore_missing_imports = true
+verbose = true
+warn_unused_ignores = true
+
+# Exclude directories from type checking
+exclude = [
+    "tests/",
+    ".venv/",
+    "__pycache__",
+    "*.egg-info",
+    "build/",
+    "dist/",
+]
+
+# Per-file ignores
+[[tool.ty.per-file-ignores]]
+errors = ["attr-defined"]  # Ignore errors in test files
+path = "tests/**/*.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
 
 [dependency-groups]
 dev = [
-    "black>=25.11.0",
-    "flake8>=7.3.0",
-    "mypy>=1.19.1",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
+    "ruff>=0.8.0",
 ]

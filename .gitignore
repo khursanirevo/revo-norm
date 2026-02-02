@@ -36,6 +36,8 @@ env/
 htmlcov/
 .tox/
 .hypothesis/
+.ruff_cache/
+.mypy_cache/
 
 # IDEs
 .vscode/
@@ -51,6 +53,24 @@ Thumbs.db
 # uv
 .python-version
 uv.lock
+
+# Documentation analysis files (temporary/working documents)
+HANDOFF.md
+CONTRADICTIONS_ANALYSIS.md
+PIPELINE_FLOWCHART.md
+PIPELINE_FLOW.md
+FIXES_SUMMARY.md
+REFACTOR_PROPOSAL.md
+ENTITY_ENHANCEMENT_PROPOSAL.md
+ENTITY_IMPLEMENTATION_SUMMARY.md
+TEST_COVERAGE_ANALYSIS.md
+COMPREHENSIVE_EXAMPLES.md
+
+# Keep only essential documentation files
+# README.md - Main project documentation
+# CLAUDE.md - Developer guidance for Claude Code
+# DEVELOPMENT.md - Development guide
+# LICENSE - License file (if exists)
 
 # Old package
 malay_normalizer/
