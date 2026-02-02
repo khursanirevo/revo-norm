@@ -4,6 +4,7 @@ Shared utility functions for currency normalization across languages.
 These functions are language-agnostic and can be used by both
 English and Malay normalizers.
 """
+
 import re
 
 
@@ -37,6 +38,5 @@ def expand_currency_k_suffix(m):
 # Uses (?<!\w) instead of \b to handle symbols like $ that aren't word characters
 # This is a universal pattern that works across all languages
 CURRENCY_K_SUFFIX_PATTERN = re.compile(
-    r'(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)(\d+(?:\.\d+)?)K\b',
-    re.IGNORECASE
+    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)(\d+(?:\.\d+)?)K\b", re.IGNORECASE
 )

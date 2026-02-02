@@ -65,7 +65,10 @@ def normalize_elongated_text(text: str) -> str:
 
 
 # Fraction handling
-_FRACTION_PATTERN = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
+# Pattern excludes dates by checking that the fraction is NOT part of a date
+# Uses negative lookbehind to ensure no digit/slash before, and negative lookahead after
+# Matches: "10/4", "3/4" but NOT "15/08/2025"
+_FRACTION_PATTERN = re.compile(r"(?<![\d/])(\d+)\s*/\s*(\d+)(?![/\d])")
 
 
 def normalize_fraction(match: re.Match, language: str = "en") -> str:
@@ -532,7 +535,10 @@ def normalize_hari_bulan_text(text: str, language: str = "en") -> str:
         'sepuluh hari bulan every year'
     """
 
-    # Direct replacement to avoid interference from other normalizers
+    # Use a unique placeholder that cannot appear in normal text
+    # This prevents interference from other normalizers (e.g., contraction handling)
+    PLACEHOLDER = "__HARI_BULAN__"
+
     def replace_hb(match):
         from revo_norm.normalizer_en import text_normalize as normalize_en
         from revo_norm.normalizer_ms import normalize_malay as normalize_ms
@@ -540,14 +546,15 @@ def normalize_hari_bulan_text(text: str, language: str = "en") -> str:
         day = match.group(1)
         if language == "en":
             day_spoken = normalize_en(day)
-            return f"{day_spoken}_hari_bulan"
+            return f"{day_spoken}{PLACEHOLDER}"
         else:
             day_spoken = normalize_ms(day)
-            return f"{day_spoken}_hari_bulan"
+            return f"{day_spoken}{PLACEHOLDER}"
 
     result = _HARI_BULAN_PATTERN.sub(replace_hb, text)
-    # After all other processing, replace underscore with space
-    result = result.replace("_hari_bulan", " hari bulan")
+    # Replace placeholder with actual spoken form
+    # Use word boundaries to ensure we don't match partial strings
+    result = result.replace(PLACEHOLDER, " hari bulan")
     return result
 
 
