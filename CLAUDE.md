@@ -59,15 +59,17 @@ Rule-based entity-aware normalization with specific ordering requirements.
 **Critical Pipeline Order:**
 1. Currency K-suffix expansion (RM30K → RM30000) - MUST be first
 2. URL/Email conversion (prevents IP address issues)
-3. Pronunciation overrides
-4. Malaya-inspired features (elongated, fractions, x-kali, temperature, IC, measurements, hari bulan, hijri)
-5. Language-specific normalization (EN/MS)
-6. Abbreviation expansion
-7. Acronym expansion
-8. Spacing normalization
-9. Special character replacement
+3. **Pronunciation mappings** (HIGHEST PRIORITY) - JSON → "jay son", ML → "ML" (preserved)
+4. Pronunciation overrides (legacy)
+5. Malaya-inspired features (elongated, fractions, x-kali, temperature, IC, measurements, hari bulan, hijri)
+6. Language-specific normalization (EN/MS)
+7. Abbreviation expansion
+8. Acronym expansion
+9. Spacing normalization
+10. Special character replacement
+11. **Remove preservation markers** (from pronunciation mappings)
 
-### 2. **Entity Extraction Pipeline** (experimental, `extract_entities_first=True`)
+### 2. **Entity Extraction Pipeline** (recommended, `extract_entities_first=True`)
 3-phase approach to prevent pattern conflicts:
 1. Extract entities → replace with `<<<TYPE_ID>>>` placeholders
 2. Process text safely (no basic normalization to avoid placeholder interference)
@@ -85,6 +87,7 @@ Rule-based entity-aware normalization with specific ordering requirements.
 | `normalizer_en.py` | English normalization (contractions, abbreviations) | `inflect` |
 | `normalizer_ms.py` | Malay normalization (grammar, vocabulary) | Custom number-to-words |
 | `entity_extractor.py` | Entity extraction system | All feature modules |
+| `pronunciation_mappings.py` | Explicit pronunciation mappings (HIGHEST PRIORITY) | None |
 | `malaya_inspired_utils.py` | Malaysian-specific features | None |
 | `abbreviation_utils.py` | Short form expansion (EN/MS mappings) | None |
 | `currency_utils.py` | Currency K-suffix expansion | None |
@@ -122,6 +125,8 @@ Rule-based entity-aware normalization with specific ordering requirements.
 2. **Date/Fraction Conflict**: Fixed in entity extraction mode
 3. **Double Pronunciation Overrides**: Removed duplicate call
 4. **Config System**: New API available, legacy flags still supported
+5. **RM Currency Split to Meter**: Fixed - Use `extract_entities_first=True` to protect currency from transformations
+6. **JSON/ML/AI Acronym Splitting**: Fixed - Pronunciation mappings applied FIRST prevent unwanted splitting
 
 ## Testing
 
@@ -206,19 +211,58 @@ uv run pytest tests/test_normalization_comprehensive.py
 5. **Acronym Expansion**: Merged `expand_capitalized_initialisms` into `replace_letter_period_sequences`
 6. **Regex Compilation**: Pre-compiled 30+ patterns at module level
 7. **Flag Behavior**: Documented that flags disable feature-specific processing only
+8. **RM Currency Meter Issue**: Added currency entity extraction - use `extract_entities_first=True` to protect currency from cascading transformations
+9. **Single-Letter Abbreviation Expansion**: Disabled single-letter and short uppercase abbreviation expansion to prevent breaking domain terms (ML, AI, LLM, meter L, etc.)
+10. **JSON/ML/AI Acronym Splitting**: Added pronunciation mappings system - explicit mappings applied FIRST in pipeline prevent unwanted transformations
 
 ### Files Modified
 
-- `revo_norm/abbreviation_utils.py` - Removed acronyms from abbreviation list
+- `revo_norm/abbreviation_utils.py` - Removed acronyms from abbreviation list, added single-letter/short uppercase abbreviation skipping
+- `revo_norm/pronunciation_mappings.py` - NEW module for explicit pronunciation mappings (highest priority in pipeline)
 - `revo_norm/malaya_inspired_utils.py` - Fixed fraction pattern, improved hari bulan
-- `revo_norm/text_normalizer.py` - Merged acronym handling, pre-compiled patterns, added entity extraction
-- `revo_norm/entity_extractor.py` - NEW module for entity extraction
+- `revo_norm/text_normalizer.py` - Merged acronym handling, pre-compiled patterns, added entity extraction, added pronunciation mappings pipeline
+- `revo_norm/entity_extractor.py` - Added currency entity type and conversion
 - `revo_norm/config.py` - Added DATES and TIMES feature groups
 - `revo_norm/__init__.py` - Exported new classes
+- `tests/test_pronunciation_mappings.py` - NEW test file for pronunciation mappings (19 tests)
+
+### Entity Extraction System (Recommended)
+
+The **entity extraction approach** (`extract_entities_first=True`) is now the recommended method for handling currency and other entities. This approach:
+
+1. **Extracts entities** → replaces with `<<<TYPE_ID>>>` placeholders
+2. **Processes text** safely (placeholders won't be touched by other transformations)
+3. **Restores entities** as spoken form
+
+**This prevents cascading transformations like:**
+- "RM" → "R M" (acronym expansion) → "R meter" (abbreviation expansion)
+
+**Recommended usage:**
+```python
+from revo_norm import normalize_text
+
+# Pronunciation mappings applied automatically
+result = normalize_text("Parse JSON file", language="en")
+# Output: "Parse jay son file"
+
+# Tech acronyms are preserved
+result = normalize_text("Train ML model", language="en")
+# Output: "Train ML model" (not "Train M L model")
+
+# Use entity extraction for robust handling of currency/entities
+result = normalize_text("RM 450000 for ML project", language="ms", extract_entities_first=True)
+# Output: "empat ratus lima puluh ribu ringgit for ML project"
+
+# Add custom pronunciation mappings
+from revo_norm.pronunciation_mappings import add_custom_mapping
+add_custom_mapping("YOLO", "you only live once", "en")
+result = normalize_text("YOLO approach", language="en")
+# Output: "you only live once approach"
+```
 
 ### Configuration System (NEW)
 
-**Recommended usage:**
+**Recommended usage (without entity extraction):**
 ```python
 from revo_norm import normalize_text, standard_config, FeatureGroup, FeatureLevel
 
@@ -246,13 +290,20 @@ result = normalize_text("Hello", language="en", normalize_temperature_flag=True)
 
 1. **Date Recognition**: `15/08/2025` → "fifteenth of August two thousand and twenty-five"
 2. **Time Recognition**: `3:30 pm` → "three thirty p m"
-3. **Entity Extraction System**: Prevents pattern conflicts via 3-phase approach
-4. **Configuration Profiles**: `minimal`, `basic`, `standard`, `aggressive`
-5. **Feature Groups**: Organized features (NUMBERS, ENTITIES, DATES, TIMES, etc.)
-6. **Acronym Control**: Can disable acronym expansion independently
+3. **Currency Entity Extraction**: `RM 450000` → "empat ratus lima puluh ribu ringgit" (protected from acronym/abbreviation expansion)
+4. **Pronunciation Mappings System**: Explicit mappings applied FIRST in pipeline
+   - `JSON` → "jay son" (not "J S O N")
+   - `GUI` → "gooey" (not "G U I")
+   - `ML` → "ML" (preserved, not split)
+   - `AI` → "AI" (preserved, not split)
+   - Custom mappings can be added via `add_custom_mapping()`
+5. **Entity Extraction System**: Prevents pattern conflicts via 3-phase approach
+6. **Configuration Profiles**: `minimal`, `basic`, `standard`, `aggressive`
+7. **Feature Groups**: Organized features (NUMBERS, ENTITIES, DATES, TIMES, etc.)
+8. **Acronym Control**: Can disable acronym expansion independently
 
 ### Test Status
 
-- **61 total tests**: 45 comprehensive + 16 entity extraction
+- **149 total tests**: 45 comprehensive + 26 missing coverage + 16 entity extraction + 19 pronunciation mappings + 43 other
 - **All tests passing**: 100% pass rate
 - **Coverage**: ~66% overall goal: 80%+
