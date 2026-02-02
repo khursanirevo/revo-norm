@@ -37,6 +37,18 @@ from revo_norm.abbreviation_utils import (
     add_custom_abbreviation,
 )
 
+# Malaya-inspired utilities
+from revo_norm.malaya_inspired_utils import (
+    normalize_elongated_text,
+    normalize_fractions,
+    normalize_x_kali_text,
+    normalize_temperatures,
+    normalize_ic_numbers,
+    normalize_measurements,
+    normalize_hari_bulan_text,
+    normalize_hijri_years,
+)
+
 __all__ = [
     # Version
     "__version__",
@@ -58,4 +70,13 @@ __all__ = [
     "expand_abbreviations",
     "get_abbreviation_mapping",
     "add_custom_abbreviation",
+    # Malaya-inspired utilities
+    "normalize_elongated_text",
+    "normalize_fractions",
+    "normalize_x_kali_text",
+    "normalize_temperatures",
+    "normalize_ic_numbers",
+    "normalize_measurements",
+    "normalize_hari_bulan_text",
+    "normalize_hijri_years",
 ]

@@ -6,11 +6,21 @@ from revo_norm.normalizer_en import text_normalize as text_normalizer_en
 from revo_norm.normalizer_ms import normalize_malay as text_normalizer_ms
 from revo_norm.currency_utils import expand_currency_k_suffix, CURRENCY_K_SUFFIX_PATTERN
 from revo_norm.abbreviation_utils import expand_abbreviations
+from revo_norm.malaya_inspired_utils import (
+    normalize_elongated_text,
+    normalize_fractions,
+    normalize_x_kali_text,
+    normalize_temperatures,
+    normalize_ic_numbers,
+    normalize_measurements,
+    normalize_hari_bulan_text,
+    normalize_hijri_years,
+)
 
 
 def normalize_whitespace(text: str) -> str:
     """Normalize multiple whitespace to single space and strip."""
-    return re.sub(r'\s{2,}', ' ', text.strip())
+    return re.sub(r"\s{2,}", " ", text.strip())
 
 
 def email_to_spoken(email: str) -> str:
@@ -33,10 +43,7 @@ def email_to_spoken(email: str) -> str:
 
 
 # Email regex pattern
-_EMAIL_RE = re.compile(
-    r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
-    re.IGNORECASE
-)
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", re.IGNORECASE)
 
 
 def convert_emails_to_spoken(text: str) -> str:
@@ -44,6 +51,7 @@ def convert_emails_to_spoken(text: str) -> str:
     Find all email addresses in text and convert them to spoken form using regex.
     This prevents messing up dots in other parts of the text.
     """
+
     def replace_email(match):
         email = match.group(0)
         return email_to_spoken(email)
@@ -62,18 +70,19 @@ def url_to_spoken(url: str) -> str:
     spoken = url
 
     # Replace protocol FIRST (before touching numbers)
-    spoken = re.sub(r'https?://', 'h t t p colon slash slash ', spoken)
-    spoken = re.sub(r'ftp://', 'f t p colon slash slash ', spoken)
+    spoken = re.sub(r"https?://", "h t t p colon slash slash ", spoken)
+    spoken = re.sub(r"ftp://", "f t p colon slash slash ", spoken)
 
     # Replace www
-    spoken = re.sub(r'www\.?', 'w w w dot ', spoken)
+    spoken = re.sub(r"www\.?", "w w w dot ", spoken)
 
     # Handle port numbers separately (before general processing)
     def replace_port(match):
         port = match.group(1)
-        port_digits = ' '.join(list(port))
-        return f' colon {port_digits}'
-    spoken = re.sub(r':(\d+)', replace_port, spoken)
+        port_digits = " ".join(list(port))
+        return f" colon {port_digits}"
+
+    spoken = re.sub(r":(\d+)", replace_port, spoken)
 
     # Replace remaining dots with " dot "
     spoken = spoken.replace(".", " dot ")
@@ -84,15 +93,15 @@ def url_to_spoken(url: str) -> str:
     # Replace remaining numbers with digit-by-digit speaking (for IP addresses)
     def speak_number_digits(match):
         num = match.group(0)
-        return ' '.join(list(num))
+        return " ".join(list(num))
 
-    spoken = re.sub(r'\d+', speak_number_digits, spoken)
+    spoken = re.sub(r"\d+", speak_number_digits, spoken)
 
     # Replace hyphens with " dash "
     spoken = spoken.replace("-", " dash ")
 
     # Clean up extra spaces
-    spoken = re.sub(r'\s+', ' ', spoken).strip()
+    spoken = re.sub(r"\s+", " ", spoken).strip()
 
     return spoken
 
@@ -100,10 +109,10 @@ def url_to_spoken(url: str) -> str:
 # URL regex pattern - matches www., http://, https://, ftp://, IPs, domains, and ports
 # Entity-specific: Requires protocol/www OR stricter domain pattern to avoid matching currency (RM1.5K)
 _URL_RE = re.compile(
-    r'(?:https?://|ftp://|www\.)[^\s]+|'  # Protocol-based URLs (must start with protocol/www)
-    r'\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:/[^\s]*)?|'  # IP addresses
-    r'\b[A-Za-z0-9-]+\.[A-Za-z]{2,}(?:/[^\s]*)?',  # Simple domains (e.g., example.com)
-    re.IGNORECASE
+    r"(?:https?://|ftp://|www\.)[^\s]+|"  # Protocol-based URLs (must start with protocol/www)
+    r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:/[^\s]*)?|"  # IP addresses
+    r"\b[A-Za-z0-9-]+\.[A-Za-z]{2,}(?:/[^\s]*)?",  # Simple domains (e.g., example.com)
+    re.IGNORECASE,
 )
 
 
@@ -112,6 +121,7 @@ def convert_urls_to_spoken(text: str) -> str:
     Find all URLs/websites in text and convert them to spoken form using regex.
     This prevents messing up dots and slashes in other parts of the text.
     """
+
     def replace_url(match):
         url = match.group(0)
         return url_to_spoken(url)
@@ -121,17 +131,19 @@ def convert_urls_to_spoken(text: str) -> str:
 
 def replace_letter_period_sequences(text: str) -> str:
     """Replace letter period sequences like 'I.B.M.' with 'I B M'."""
+
     def replacer(match):
-        cleaned = match.group(0).rstrip('.')
-        letters = cleaned.split('.')
-        return ' '.join(letters)
-    return re.sub(r'\b(?:[A-Za-z]\.){2,}', replacer, text)
+        cleaned = match.group(0).rstrip(".")
+        letters = cleaned.split(".")
+        return " ".join(letters)
+
+    return re.sub(r"\b(?:[A-Za-z]\.){2,}", replacer, text)
 
 
 def remove_inline_reference_numbers(text: str) -> str:
     """Remove reference numbers after punctuation (e.g., 'word1.' -> 'word.')."""
     pattern = r'([.!?,\\\'"\)\]])(\d+)(?=\s|$)'
-    return re.sub(pattern, r'\1', text)
+    return re.sub(pattern, r"\1", text)
 
 
 def is_pronounceable(acronym: str) -> bool:
@@ -154,28 +166,30 @@ def expand_acronym(acronym: str) -> str:
 
 def expand_capitalized_initialisms(text: str) -> str:
     """Expand capitalized acronyms in text."""
+
     def replacer(match):
         acronym = match.group(0)
         return expand_acronym(acronym)
-    return re.sub(r'\b([A-Z]{2,})\b', replacer, text)
+
+    return re.sub(r"\b([A-Z]{2,})\b", replacer, text)
 
 
 def split_into_sentences(text: str) -> List[str]:
     """Split text into sentences using basic regex."""
-    sentence_endings = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
+    sentence_endings = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
     return [s.strip() for s in sentence_endings.split(text) if s.strip()]
 
 
 def parse_sound_word_field(user_input: str) -> List[Tuple[str, str]]:
     """Parse sound word field input into list of (pattern, replacement) tuples."""
-    lines = [l.strip() for l in user_input.split('\n') if l.strip()]
+    lines = [l.strip() for l in user_input.split("\n") if l.strip()]
     result = []
     for line in lines:
-        if '=>' in line:
-            pattern, replacement = line.split('=>', 1)
+        if "=>" in line:
+            pattern, replacement = line.split("=>", 1)
             result.append((pattern.strip(), replacement.strip()))
         else:
-            result.append((line, ''))
+            result.append((line, ""))
     return result
 
 
@@ -184,122 +198,122 @@ def smart_remove_sound_words(text: str, sound_words: List[Tuple[str, str]]) -> s
     for pattern, replacement in sound_words:
         if replacement:
             text = re.sub(
-                r'(?i)(%s)([' r"'\u2019`s?])" % re.escape(pattern),
+                r"(?i)(%s)([" r"'\u2019`s?])" % re.escape(pattern),
                 lambda m: replacement + "'s" if m.group(2) else replacement,
-                text
+                text,
             )
             if all(char in "-—-" for char in pattern.strip()):
                 text = re.sub(re.escape(pattern), replacement, text)
             else:
                 text = re.sub(
-                    r'\b%s\b' % re.escape(pattern),
-                    replacement,
-                    text,
-                    flags=re.IGNORECASE
+                    r"\b%s\b" % re.escape(pattern), replacement, text, flags=re.IGNORECASE
                 )
         else:
-            text = re.sub(
-                r'%s' % re.escape(pattern),
-                '',
-                text,
-                flags=re.IGNORECASE
-            )
+            text = re.sub(r"%s" % re.escape(pattern), "", text, flags=re.IGNORECASE)
 
-    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
-    text = re.sub(r'([,\s]+,)+', ',', text)
-    text = re.sub(r',\s*,+', ',', text)
-    text = re.sub(r'\s{2,}', ' ', text)
-    text = re.sub(r'(\s+,|,\s+)', ', ', text)
-    text = re.sub(r'(^|[\.!\?]\s*),+', r'\1', text)
-    text = re.sub(r',+\s*([\.!\?])', r'\1', text)
+    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"([,\s]+,)+", ",", text)
+    text = re.sub(r",\s*,+", ",", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    text = re.sub(r"(\s+,|,\s+)", ", ", text)
+    text = re.sub(r"(^|[\.!\?]\s*),+", r"\1", text)
+    text = re.sub(r",+\s*([\.!\?])", r"\1", text)
     return text.strip()
 
 
 def insert_comma_after_repeated_words(text: str, min_repeat: int = 3) -> str:
     """Insert comma after repeated words (e.g., 'test test test test' -> 'test test test, test')."""
-    pattern = r'\b(?P<word>\w+)\b(?: \1){' + str(min_repeat) + r',}'
+    pattern = r"\b(?P<word>\w+)\b(?: \1){" + str(min_repeat) + r",}"
 
     def replacer(match):
         phrase = match.group(0)
         words = phrase.split()
-        return ' '.join(words[:-1]) + ', ' + words[-1]
+        return " ".join(words[:-1]) + ", " + words[-1]
 
     return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
 
 
 def apply_pronunciation_overrides(text: str) -> str:
     """Apply pronunciation overrides for specific words and phrases."""
-    text = re.sub(r'\btwenty-three\b', 'twenty tree', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bthree\b', 'three', text, flags=re.IGNORECASE)
-    text = re.sub(r'\btwenty-eight\b', 'twenty, eight', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bcut-off\b', 'kad off', text, flags=re.IGNORECASE)
-    text = re.sub(r'\beighty-eight\b', 'eighty eight', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bNumber\b', 'number', text, flags=re.IGNORECASE)
-    text = re.sub(r'\ba/l\b', 'anak lelaki', text, flags=re.IGNORECASE)
-    text = re.sub(r'\ba/p\b', 'anak perempuan', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b1Malaysia\b', 'satu malaysia', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bNo\.\b', 'number', text, flags=re.IGNORECASE)
+    text = re.sub(r"\btwenty-three\b", "twenty tree", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bthree\b", "three", text, flags=re.IGNORECASE)
+    text = re.sub(r"\btwenty-eight\b", "twenty, eight", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bcut-off\b", "kad off", text, flags=re.IGNORECASE)
+    text = re.sub(r"\beighty-eight\b", "eighty eight", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bNumber\b", "number", text, flags=re.IGNORECASE)
+    text = re.sub(r"\ba/l\b", "anak lelaki", text, flags=re.IGNORECASE)
+    text = re.sub(r"\ba/p\b", "anak perempuan", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b1Malaysia\b", "satu malaysia", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bNo\.\b", "number", text, flags=re.IGNORECASE)
     # Don't replace "/" here - let date regex handle dates like 12/03/2025
 
     unit_map = {
         "mg": "milligram",
         "kg": "kilogram",
         "GB": "gigabyte",
-        "hb": "haribulan"
+        # Note: "hb" (hari bulan) is handled by normalize_hari_bulan_text
     }
 
     for unit, spoken in unit_map.items():
-        pattern = rf'(\d+)\s*{unit}\b'
-        text = re.sub(pattern, rf'\1 {spoken}', text, flags=re.IGNORECASE)
+        pattern = rf"(\d+)\s*{unit}\b"
+        text = re.sub(pattern, rf"\1 {spoken}", text, flags=re.IGNORECASE)
 
     return text
 
 
-def special_replace(text: str, language: str = 'en') -> str:
+def special_replace(text: str, language: str = "en") -> str:
     """
     Special character and punctuation normalization.
     This function replaces special characters with spoken equivalents.
     """
     # Language-specific replacements
-    percent_word = 'percent' if language == 'en' else 'peratus'
+    percent_word = "percent" if language == "en" else "peratus"
 
     replacements = {
-        '&': 'and',
-        '+': 'plus',
-        '=': 'equals',
-        '@': 'at',
-        '#': 'hash',
-        '*': 'star',
-        '%': percent_word,
-        '$': 'dollar',
-        'EUR': 'euro',
-        'GBP': 'pound',
-        '©': 'copyright',
-        '®': 'registered',
-        '™': 'trademark',
-        '<': 'less than',
-        '>': 'greater than',
-        '|': 'bar',
-        '~': 'tilde',
-        '^': 'caret',
+        "&": "and",
+        "+": "plus",
+        "=": "equals",
+        "@": "at",
+        "#": "hash",
+        "*": "star",
+        "%": percent_word,
+        "$": "dollar",
+        "EUR": "euro",
+        "GBP": "pound",
+        "©": "copyright",
+        "®": "registered",
+        "™": "trademark",
+        "<": "less than",
+        ">": "greater than",
+        "|": "bar",
+        "~": "tilde",
+        "^": "caret",
     }
 
     for char, replacement in replacements.items():
-        text = text.replace(char, f' {replacement} ')
+        text = text.replace(char, f" {replacement} ")
 
     # Clean up multiple spaces
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
 def normalize_text(
     text: str,
-    language: str = 'en',
+    language: str = "en",
     normalize_spacing: bool = True,
     fix_dot_letters: bool = True,
     sound_words_field: str = "",
     apply_pronunciation_overrides_flag: bool = True,
     expand_abbreviations_flag: bool = True,
+    normalize_elongated_flag: bool = True,
+    normalize_fractions_flag: bool = True,
+    normalize_x_kali_flag: bool = True,
+    normalize_temperature_flag: bool = True,
+    normalize_ic_flag: bool = True,
+    normalize_measurements_flag: bool = True,
+    normalize_hari_bulan_flag: bool = True,
+    normalize_hijri_flag: bool = True,
 ) -> str:
     """
     Main text normalization function.
@@ -312,6 +326,14 @@ def normalize_text(
         sound_words_field: Sound words to remove (newline-separated, use '=>' for replacements)
         apply_pronunciation_overrides_flag: Whether to apply pronunciation overrides
         expand_abbreviations_flag: Whether to expand abbreviations and short forms (default: True)
+        normalize_elongated_flag: Whether to normalize elongated words (default: True)
+        normalize_fractions_flag: Whether to normalize fractions (default: True)
+        normalize_x_kali_flag: Whether to normalize x/kali multipliers (default: True)
+        normalize_temperature_flag: Whether to normalize temperatures (default: True)
+        normalize_ic_flag: Whether to normalize Malaysian IC numbers (default: True)
+        normalize_measurements_flag: Whether to normalize measurements (default: True)
+        normalize_hari_bulan_flag: Whether to normalize hari bulan (default: True)
+        normalize_hijri_flag: Whether to normalize Hijri years (default: True)
 
     Returns:
         Normalized text string
@@ -333,10 +355,29 @@ def normalize_text(
     if apply_pronunciation_overrides_flag:
         text = apply_pronunciation_overrides(text)
 
+    # Malaya-inspired normalizations (before language-specific processing)
+    if normalize_elongated_flag:
+        text = normalize_elongated_text(text)
+    if normalize_fractions_flag:
+        text = normalize_fractions(text, language)
+    if normalize_x_kali_flag:
+        text = normalize_x_kali_text(text, language)
+    if normalize_temperature_flag:
+        text = normalize_temperatures(text, language)
+    if normalize_ic_flag:
+        text = normalize_ic_numbers(text, language)
+    if normalize_measurements_flag:
+        text = normalize_measurements(text, language)
+    # Hari bulan normalization BEFORE language-specific (using underscore to avoid contraction)
+    if normalize_hari_bulan_flag:
+        text = normalize_hari_bulan_text(text, language)
+    if normalize_hijri_flag:
+        text = normalize_hijri_years(text, language)
+
     # Language-specific normalization
-    if language == 'en':
+    if language == "en":
         text = text_normalizer_en(text)
-    elif language == 'ms':
+    elif language == "ms":
         text = text_normalizer_ms(text)
 
     # Remove sound words
