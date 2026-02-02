@@ -74,6 +74,8 @@ class EntityExtractor:
             # URLs and emails (must be first to prevent IP/decimal issues)
             EntityType.URL: self._compile_url_patterns(),
             EntityType.EMAIL: self._compile_email_patterns(),
+            # Currency (must be early to protect from acronym/abbreviation expansion)
+            EntityType.CURRENCY: self._compile_currency_patterns(),
             # Date and time patterns
             EntityType.DATE: self._compile_date_patterns(),
             EntityType.TIME: self._compile_time_patterns(),
@@ -99,6 +101,25 @@ class EntityExtractor:
         """Compile email detection patterns."""
         return re.compile(
             r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+            re.IGNORECASE,
+        )
+
+    def _compile_currency_patterns(self) -> re.Pattern:
+        """
+        Compile currency detection patterns.
+
+        Matches:
+        - RM + amount: RM100, RM 50.50, RM1,000
+        - USD + amount: USD100, USD 50.50
+        - $ + amount: $100, $ 50.50
+        - € + amount: €100, € 50.50
+        - £ + amount: £100, £ 50.50
+        - Also handles K-suffix: RM30K → RM30000
+        """
+        # Pattern: currency symbol (RM, USD, EUR, GBP, MYR, $, £, €) + optional space + amount
+        # Amount can have commas and decimals: 1,000.50
+        return re.compile(
+            r"(?<!\w)(RM|USD|EUR|GBP|MYR|\$|£|€)(?:\s?)([\d,]+(?:[\.,]\d{1,2})?)(?:K)?\b",
             re.IGNORECASE,
         )
 
@@ -287,6 +308,9 @@ class EntityExtractor:
 
         if entity.type == EntityType.EMAIL:
             return email_to_spoken(entity.text, language)
+
+        if entity.type == EntityType.CURRENCY:
+            return self._convert_currency_to_spoken(entity.text, language)
 
         if entity.type == EntityType.DATE:
             return self._convert_date_to_spoken(entity.text, language)
@@ -542,3 +566,71 @@ class EntityExtractor:
             return "rd"
         else:
             return "th"
+
+    def _convert_currency_to_spoken(self, currency_text: str, language: str) -> str:
+        """Convert a currency amount to spoken form."""
+        from revo_norm.currency_utils import expand_currency_k_suffix
+        from revo_norm.normalizer_en import text_normalize as normalize_en
+        from revo_norm.num2word import to_cardinal as num2word
+
+        # First, expand K-suffix if present (RM30K → RM30000)
+        from revo_norm.currency_utils import CURRENCY_K_SUFFIX_PATTERN
+        expanded = CURRENCY_K_SUFFIX_PATTERN.sub(
+            lambda m: expand_currency_k_suffix(m), currency_text
+        )
+
+        # Parse the currency amount
+        # Pattern: (RM|USD|EUR|GBP|MYR|$|£|€) + optional space + amount
+        currency_match = re.match(
+            r"(?<!\w)(RM|USD|EUR|GBP|MYR|\$|£|€)(?:\s?)([\d,]+(?:[\.,]\d+)?)",
+            expanded,
+            re.IGNORECASE,
+        )
+
+        if not currency_match:
+            # Fallback: return original text
+            return currency_text
+
+        symbol = currency_match.group(1).upper()
+        amount_str = currency_match.group(2).replace(",", "")
+
+        # Map currency symbol to spoken form and units
+        currency_names = {
+            "RM": ("ringgit", "sen"),
+            "MYR": ("ringgit", "sen"),
+            "USD": ("dollar", "cents"),
+            "$": ("dollar", "cents"),
+            "EUR": ("euro", "cents"),
+            "€": ("euro", "cents"),
+            "GBP": ("pound", "pence"),
+            "£": ("pound", "pence"),
+        }
+
+        unit_main, unit_sub = currency_names.get(symbol, (symbol.lower(), "cents"))
+
+        # Handle decimal amounts
+        if "." in amount_str:
+            whole, frac = amount_str.split(".", 1)
+            # Remove trailing zeros from fraction
+            frac = frac.rstrip("0")
+            if frac:
+                if language == "en":
+                    whole_spoken = normalize_en(whole)
+                    frac_spoken = " ".join(digit for digit in frac)
+                    return f"{whole_spoken} {unit_main} {frac_spoken} {unit_sub}"
+                else:
+                    whole_spoken = num2word(int(whole))
+                    frac_spoken = " ".join(num2word(int(d)) for d in frac)
+                    return f"{whole_spoken} {unit_main} {frac_spoken} {unit_sub}"
+            else:
+                # Trailing decimal only, treat as whole number
+                amount_str = whole
+
+        # Whole number amount
+        if language == "en":
+            amount_spoken = normalize_en(amount_str)
+        else:
+            # Use num2word for proper Malay number conversion
+            amount_spoken = num2word(int(amount_str))
+
+        return f"{amount_spoken} {unit_main}"
