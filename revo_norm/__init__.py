@@ -71,6 +71,7 @@ from revo_norm.tts_utils import (
     parse_sound_word_field,
     smart_remove_sound_words,
     split_repetitive_sequences,
+    split_text_by_words,
 )
 
 # Main text normalizer
@@ -134,5 +135,6 @@ __all__ = [
     "parse_sound_word_field",
     "smart_remove_sound_words",
     "split_repetitive_sequences",
+    "split_text_by_words",
     "add_random_commas",
 ]

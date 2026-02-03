@@ -212,3 +212,52 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
             last_punctuation_pos = i
 
     return ' '.join(new_words).replace(' ,', ',')
+
+
+def split_text_by_words(text: str, max_chars: int = 150) -> list[str]:
+    """
+    Split text into chunks by word boundaries (respects word integrity).
+
+    This function ensures that words are never cut in half. It splits
+    text into chunks that are approximately max_chars long, but will
+    exceed this limit if necessary to avoid cutting a word.
+
+    Args:
+        text: Input text to split
+        max_chars: Target maximum characters per chunk (default: 150)
+
+    Returns:
+        List of text chunks, each containing complete words
+
+    Example:
+        >>> split_text_by_words("the secret passage under the cottage", 20)
+        ['the secret passage', 'under the cottage']
+        >>> split_text_by_words("Di halaman rumah nenek", 10)
+        ['Di halaman', 'rumah nenek']
+    """
+    words = text.split()
+    if not words:
+        return []
+
+    chunks = []
+    current_chunk = []
+    current_length = 0
+
+    for word in words:
+        word_len = len(word)
+
+        # Check if adding this word would exceed max_chars
+        # Only start a new chunk if we already have content
+        if current_chunk and current_length + word_len + 1 > max_chars:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = []
+            current_length = 0
+
+        current_chunk.append(word)
+        current_length += word_len + (1 if current_chunk else 0)
+
+    # Add the last chunk
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+
+    return chunks
