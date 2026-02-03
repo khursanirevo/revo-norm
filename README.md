@@ -1,20 +1,23 @@
 # Revo Norm
 
-**A comprehensive text normalization library for Text-to-Speech (TTS) applications, supporting English and Malay (Bahasa Melayu).**
+**A comprehensive text normalization library designed specifically for Text-to-Speech (TTS) applications, supporting English and Malay (Bahasa Melayu).**
+
+> **⚠️ IMPORTANT:** This library is designed for **TTS (text → speech)** normalization ONLY. It is **NOT suitable for ASR (speech → text)** preprocessing. The normalization transforms text into its spoken form, which is inappropriate for speech recognition systems.
 
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)
-[![Tests](https://img.shields.io/badge/tests-123-brightgreen.svg)
-[![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen.svg)
+[![Tests](https://img.shields.io/badge/tests-149-brightgreen.svg)
+[![Coverage](https://img.shields.io/badge/coverage-66%25-brightgreen.svg)
 
 ## Features
 
 - ✅ **Language Support**: English and Malay (Bahasa Melayu)
-- ✅ **18+ Normalization Features**: Currency K-suffix, URLs, emails, dates, times, temperature, IC numbers, measurements, fractions, and more
+- ✅ **TTS-Specific Design**: For text-to-speech only, NOT for ASR preprocessing
+- ✅ **18+ Normalization Features**: Currency, URLs, emails, dates, times, temperature, IC numbers, measurements, fractions, pronunciation mappings
 - ✅ **Smart Configuration**: Profile-based configuration (minimal, basic, standard, aggressive, technical_doc)
-- ✅ **Entity Extraction**: Experimental 3-phase approach to prevent pattern conflicts (e.g., date vs fraction)
-- ✅ **Language-Aware Email**: Malay emails use "di" instead of "at" for @ symbol
-- ✅ **123 Tests**: Comprehensive test coverage with 81% code coverage
+- ✅ **Entity Extraction**: Prevents pattern conflicts via 3-phase approach
+- ✅ **Pronunciation Mappings**: JSON → "jay son", tech acronyms preserved (ML, AI, API)
+- ✅ **149 Tests**: Comprehensive test coverage with 66% code coverage
 - ✅ **Modern Tooling**: Uses uv, ruff, pytest for fast development
 
 ## Installation
@@ -42,6 +45,11 @@ pip install -e ".[dev]"
 ```
 
 ## Quick Start
+
+> **⚠️ NOT FOR ASR:** This library normalizes text for **TTS (text → speech)**. It converts written text into spoken form (e.g., "RM100" → "seratus ringgit"). **DO NOT use** for ASR (speech → text) preprocessing.
+
+```python
+from revo_norm import normalize_text
 
 ```python
 from revo_norm import normalize_text
@@ -194,6 +202,78 @@ normalize_text("Budget RM30K for project", language="en")
 # "Budget thirty thousand ringgit for project"
 ```
 
+## ⚠️ Important: TTS-Specific Design
+
+### Purpose
+
+This library is designed **exclusively for Text-to-Speech (TTS) applications**. It normalizes written text into its **spoken form**, which is essential for TTS systems but **inappropriate for ASR (Automatic Speech Recognition)**.
+
+### What It Does (TTS)
+
+The library transforms text for **speech synthesis**:
+
+| Input | Output | Purpose |
+|-------|--------|---------|
+| `RM100` | `seratus ringgit` | Convert written form to spoken form |
+| `25°C` | `twenty five celsius` | Pronounceable symbols |
+| `3:30 pm` | `three thirty p m` | Spoken time format |
+| `user@example.com` | `user at example dot com` | Expand abbreviations |
+| `JSON` | `jay son` | Correct pronunciation |
+| `ML` | `ML` (preserved) | Acronym preservation |
+
+### Why NOT for ASR
+
+**DO NOT use this library for ASR preprocessing** because:
+
+1. ❌ **It destroys information needed for ASR**
+   - "RM100" → "seratus ringgit" loses the original format
+   - ASR needs to preserve original text structure
+
+2. ❌ **It adds tokens that confuse ASR**
+   - Expands: "API" → "A P I", "JSON" → "jay son"
+   - Converts numbers: "123" → "one two three"
+   - This makes ASR transcription harder
+
+3. ❌ **Wrong direction for speech processing**
+   - TTS: text → spoken form ✅
+   - ASR: audio → text (needs original format) ❌
+
+### Use Case Compatibility
+
+| Application | Use Revo Norm? | Reason |
+|-------------|---------------|---------|
+| **TTS (Text → Speech)** | ✅ YES | Converts text to spoken form for synthesis |
+| **ASR (Speech → Text)** | ❌ NO | Would corrupt text before recognition |
+| **Translation Engines** | ❌ NO | Should preserve original format |
+| **Chat Applications** | ❌ NO | Users need to see original text |
+| **Voice Assistants** | ✅ YES | Prepares text for TTS output only |
+
+### Example: Wrong Usage for ASR
+
+```python
+# ❌ WRONG: Using for ASR preprocessing
+from revo_norm import normalize_text
+
+# DON'T DO THIS for ASR!
+transcript = "User spent RM100 on 5 items"
+normalized = normalize_text(transcript, language="ms")
+# Result: "user spent seratus ringgit on lima items"
+# ASR receives corrupted text instead of original "RM100"
+```
+
+### Example: Correct Usage for TTS
+
+```python
+# ✅ CORRECT: Using for TTS
+from revo_norm import normalize_text
+
+# This is what it's designed for
+text = "Harga RM100 untuk 5 unit"
+normalized = normalize_text(text, language="ms")
+# TTS will say: "harga seratus ringgit untuk lima unit"
+# Perfect for speech synthesis!
+```
+
 ## Development
 
 ### Setup
@@ -231,7 +311,7 @@ uv run ruff check --fix revo_norm/
 ## Testing
 
 ```bash
-# Run all tests (123 tests)
+# Run all tests (149 tests)
 uv run pytest
 
 # Run with coverage
@@ -243,8 +323,8 @@ uv run pytest tests/test_normalization_comprehensive.py::TestTemperature::test_e
 
 ### Test Coverage
 
-- **123 tests** covering all features
-- **81% code coverage** (target: 85%+)
+- **149 tests** covering all features
+- **66% code coverage** (target: 80%+)
 - Includes unit tests, integration tests, edge cases, and performance tests
 
 ## Architecture
@@ -281,8 +361,9 @@ uv run pytest tests/test_normalization_comprehensive.py::TestTemperature::test_e
 
 - **Version**: 0.2.0-dev (Alpha)
 - **Python**: 3.9+
-- **Tests**: 123 passing
-- **Coverage**: 81%
+- **Tests**: 149 passing
+- **Coverage**: 66%
+- **Scope**: TTS text normalization only (NOT for ASR)
 - **State**: Feature-complete for v0.2.0
 
 ## License
