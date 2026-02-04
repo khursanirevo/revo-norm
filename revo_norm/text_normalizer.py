@@ -100,9 +100,12 @@ def url_to_spoken(url: str) -> str:
     """
     spoken = url
 
-    # Replace protocol FIRST (before touching numbers)
-    spoken = re.sub(r"https?://", "h t t p colon slash slash ", spoken)
-    spoken = re.sub(r"ftp://", "f t p colon slash slash ", spoken)
+    # Replace protocol FIRST - generalize by splitting on ://
+    if "://" in spoken:
+        protocol, rest = spoken.split("://", 1)
+        # Spell out protocol character by character
+        protocol_spoken = " ".join(list(protocol))
+        spoken = spoken.replace(f"{protocol}://", f"{protocol_spoken} colon slash slash ")
 
     # Replace www
     spoken = re.sub(r"www\.?", "w w w dot ", spoken)
@@ -137,11 +140,11 @@ def url_to_spoken(url: str) -> str:
     return spoken
 
 
-# URL regex pattern - matches www., http://, https://, ftp://, IPs, domains, and ports
+# URL regex pattern - matches any protocol://, www., IPs, domains, and ports
 # Entity-specific: Requires protocol/www OR stricter domain pattern to avoid
 # matching currency (e.g., RM1.5K)
 _URL_RE = re.compile(
-    r"(?:https?://|ftp://|www\.)[^\s]+|"  # Protocol-based URLs (must start with protocol/www)
+    r"(?:[a-zA-Z][a-zA-Z0-9+.-]*://|www\.)[^\s]+|"  # Any protocol:// URLs (must start with protocol/www)
     r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:/[^\s]*)?|"  # IP addresses
     r"\b[A-Za-z0-9-]+\.[A-Za-z]{2,}(?:/[^\s]*)?",  # Simple domains (e.g., example.com)
     re.IGNORECASE,
