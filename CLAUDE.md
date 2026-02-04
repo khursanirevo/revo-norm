@@ -19,28 +19,28 @@ uv sync --all-extras
 uv sync --group dev
 
 # Run all tests
-uv run pytest
+uv run pytest ../tests/revo-norm/
 
 # Run specific test file
-uv run pytest tests/test_normalization_comprehensive.py -v
+uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py -v
 
 # Run tests with coverage
-uv run pytest --cov --cov-report=term-missing
+uv run pytest ../tests/revo-norm/ --cov --cov-report=term-missing
 
 # Run specific test
-uv run pytest tests/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
+uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
 
 # Format code (ruff)
-uv run ruff format revo_norm/ tests/
+uv run ruff format revo_norm/
 
 # Check linting issues (ruff)
-uv run ruff check revo_norm/ tests/
+uv run ruff check revo_norm/
 
 # Type check (ty)
 uv run ty revo_norm/
 
 # Run with verbose output
-uv run pytest -v --tb=short
+uv run pytest ../tests/revo-norm/ -v --tb=short
 
 # Auto-fix linting issues
 uv run ruff check revovo_norm/ --fix
@@ -130,28 +130,32 @@ Rule-based entity-aware normalization with specific ordering requirements.
 
 ## Testing
 
+> **NOTE:** Test cases are stored in the parent ChatterBox repository (private) to keep challenge data private.
+> Test location: `../tests/revo-norm/` (relative to revo-norm directory)
+
 ### Test Structure
-- `tests/test_normalization_comprehensive.py` - 45 tests covering all features
-- `tests/test_entity_extraction.py` - 16 tests for entity extraction system
-- Tests directory is in `.gitignore` to keep challenges private
+- `../tests/revo-norm/test_normalization_comprehensive.py` - 45 tests covering all features
+- `../tests/revo-norm/test_entity_extraction.py` - 16 tests for entity extraction system
+- `../tests/revo-norm/test_missing_coverage.py` - 26 tests for coverage gaps
+- `../tests/revo-norm/test_pronunciation_mappings.py` - 19 tests for pronunciation mappings
 
 ### Running Tests
 
 ```bash
-# Run all tests
-uv run pytest
+# Run all tests (from revo-norm directory)
+uv run pytest ../tests/revo-norm/
 
 # Run with coverage
-uv run pytest --cov
+uv run pytest ../tests/revo-norm/ --cov
 
 # Run specific test class
-uv run pytest tests/test_normalization_comprehensive.py::TestTemperature -v
+uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature -v
 
 # Run specific test
-uv run pytest tests/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
+uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
 
 # Debug with verbose output
-uv run pytest -v --tb=short
+uv run pytest ../tests/revo-norm/ -v --tb=short
 ```
 
 ### Test Coverage
@@ -164,10 +168,10 @@ uv run pytest -v --tb=short
 
 ```bash
 # When modifying a feature, run its specific test class
-uv run pytest tests/test_normalization_comprehensive.py::TestTemperature -v
+uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature -v
 
 # After changes, verify no regressions
-uv run pytest tests/test_normalization_comprehensive.py
+uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py
 ```
 
 ## Important Patterns
