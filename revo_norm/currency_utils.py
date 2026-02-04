@@ -34,9 +34,97 @@ def expand_currency_k_suffix(m):
     return f"{symbol}{amount_final}"
 
 
+def expand_currency_m_suffix(m):
+    """
+    Expand currency with 'M' suffix (millions) to full number.
+    This is entity-aware: only processes detected currency entities.
+
+    This is a universal function that works across all languages.
+
+    Examples:
+        RM1M → RM1000000
+        RM10M → RM10000000
+        RM1.5M → RM1500000
+        $50M → $50000000
+        EUR100M → EUR100000000
+    """
+    symbol = m.group(1)  # RM, $, etc.
+    amount = m.group(2)  # e.g., "1", "10", "1.5"
+
+    # Convert to float and multiply by 1,000,000
+    amount_float = float(amount) * 1000000
+
+    # Convert to integer if it's a whole number
+    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
+
+    return f"{symbol}{amount_final}"
+
+
+def expand_currency_b_suffix(m):
+    """
+    Expand currency with 'B' suffix (billions) to full number.
+    This is entity-aware: only processes detected currency entities.
+
+    This is a universal function that works across all languages.
+
+    Examples:
+        RM1B → RM1000000000
+        $2.5B → $2500000000
+        EUR10B → EUR10000000000
+    """
+    symbol = m.group(1)  # RM, $, etc.
+    amount = m.group(2)  # e.g., "1", "2.5"
+
+    # Convert to float and multiply by 1,000,000,000
+    amount_float = float(amount) * 1000000000
+
+    # Convert to integer if it's a whole number
+    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
+
+    return f"{symbol}{amount_final}"
+
+
+def expand_currency_t_suffix(m):
+    """
+    Expand currency with 'T' suffix (trillions) to full number.
+    This is entity-aware: only processes detected currency entities.
+
+    This is a universal function that works across all languages.
+
+    Examples:
+        RM1T → RM1000000000000
+        $2T → $2000000000000
+    """
+    symbol = m.group(1)  # RM, $, etc.
+    amount = m.group(2)  # e.g., "1", "2"
+
+    # Convert to float and multiply by 1,000,000,000,000
+    amount_float = float(amount) * 1000000000000
+
+    # Convert to integer if it's a whole number
+    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
+
+    return f"{symbol}{amount_final}"
+
+
 # Regex pattern for currency with K suffix (thousands)
 # Uses (?<!\w) instead of \b to handle symbols like $ that aren't word characters
 # This is a universal pattern that works across all languages
 CURRENCY_K_SUFFIX_PATTERN = re.compile(
     r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)(\d+(?:\.\d+)?)K\b", re.IGNORECASE
+)
+
+# Regex pattern for currency with M suffix (millions)
+CURRENCY_M_SUFFIX_PATTERN = re.compile(
+    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)(\d+(?:\.\d+)?)M\b", re.IGNORECASE
+)
+
+# Regex pattern for currency with B suffix (billions)
+CURRENCY_B_SUFFIX_PATTERN = re.compile(
+    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)(\d+(?:\.\d+)?)B\b", re.IGNORECASE
+)
+
+# Regex pattern for currency with T suffix (trillions)
+CURRENCY_T_SUFFIX_PATTERN = re.compile(
+    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)(\d+(?:\.\d+)?)T\b", re.IGNORECASE
 )

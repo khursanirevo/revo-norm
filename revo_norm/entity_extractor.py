@@ -12,6 +12,7 @@ Architecture:
 """
 
 import re
+import inflect
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
@@ -114,12 +115,13 @@ class EntityExtractor:
         - $ + amount: $100, $ 50.50
         - € + amount: €100, € 50.50
         - £ + amount: £100, £ 50.50
-        - Also handles K-suffix: RM30K → RM30000
+        - Also handles suffixes: RM30K, RM1M, RM2B, RM1T (thousands, millions, billions, trillions)
         """
         # Pattern: currency symbol (RM, USD, EUR, GBP, MYR, $, £, €) + optional space + amount
         # Amount can have commas and decimals: 1,000.50
+        # Optional suffix: K (thousands), M (millions), B (billions), T (trillions)
         return re.compile(
-            r"(?<!\w)(RM|USD|EUR|GBP|MYR|\$|£|€)(?:\s?)([\d,]+(?:[\.,]\d{1,2})?)(?:K)?\b",
+            r"(?<!\w)(RM|USD|EUR|GBP|MYR|\$|£|€)(?:\s?)([\d,]+(?:[\.,]\d{1,2})?)(?:[KMBT])?\b",
             re.IGNORECASE,
         )
 
@@ -569,14 +571,38 @@ class EntityExtractor:
 
     def _convert_currency_to_spoken(self, currency_text: str, language: str) -> str:
         """Convert a currency amount to spoken form."""
-        from revo_norm.currency_utils import expand_currency_k_suffix
+        from revo_norm.currency_utils import (
+            expand_currency_k_suffix,
+            expand_currency_m_suffix,
+            expand_currency_b_suffix,
+            expand_currency_t_suffix,
+            CURRENCY_K_SUFFIX_PATTERN,
+            CURRENCY_M_SUFFIX_PATTERN,
+            CURRENCY_B_SUFFIX_PATTERN,
+            CURRENCY_T_SUFFIX_PATTERN,
+        )
         from revo_norm.normalizer_en import text_normalize as normalize_en
         from revo_norm.num2word import to_cardinal as num2word
 
-        # First, expand K-suffix if present (RM30K → RM30000)
-        from revo_norm.currency_utils import CURRENCY_K_SUFFIX_PATTERN
+        # Initialize inflect engine for English number-to-words conversion
+        _inflect_engine = inflect.engine()
+
+        # First, expand suffixes if present (order matters: T → B → M → K)
+        # RM1T → RM1000000000000
+        # RM1B → RM1000000000
+        # RM1M → RM1000000
+        # RM30K → RM30000
+        expanded = CURRENCY_T_SUFFIX_PATTERN.sub(
+            lambda m: expand_currency_t_suffix(m), currency_text
+        )
+        expanded = CURRENCY_B_SUFFIX_PATTERN.sub(
+            lambda m: expand_currency_b_suffix(m), expanded
+        )
+        expanded = CURRENCY_M_SUFFIX_PATTERN.sub(
+            lambda m: expand_currency_m_suffix(m), expanded
+        )
         expanded = CURRENCY_K_SUFFIX_PATTERN.sub(
-            lambda m: expand_currency_k_suffix(m), currency_text
+            lambda m: expand_currency_k_suffix(m), expanded
         )
 
         # Parse the currency amount
@@ -611,16 +637,28 @@ class EntityExtractor:
         # Handle decimal amounts
         if "." in amount_str:
             whole, frac = amount_str.split(".", 1)
-            # Remove trailing zeros from fraction
-            frac = frac.rstrip("0")
+            # Pad to 2 digits for cents (e.g., "5" → "50" for 0.50, "1" → "10" for 0.10)
+            if len(frac) == 1:
+                frac = frac + "0"
+            # Limit to 2 digits (ignore micro-decimals)
+            frac = frac[:2]
             if frac:
                 if language == "en":
-                    whole_spoken = normalize_en(whole)
-                    frac_spoken = " ".join(digit for digit in frac)
+                    # Use inflect for whole numbers (e.g., "10000" → "ten thousand")
+                    whole_spoken = _inflect_engine.number_to_words(int(whole))
+                    # Treat fraction as whole number (e.g., "50" → "fifty")
+                    frac_spoken = _inflect_engine.number_to_words(int(frac))
+                    # Skip main unit if whole part is 0 (e.g., $0.50 → "fifty cents", not "zero dollar fifty cents")
+                    if whole == "0":
+                        return f"{frac_spoken} {unit_sub}"
                     return f"{whole_spoken} {unit_main} {frac_spoken} {unit_sub}"
                 else:
                     whole_spoken = num2word(int(whole))
-                    frac_spoken = " ".join(num2word(int(d)) for d in frac)
+                    # Treat fraction as whole number in Malay (e.g., "50" → "lima puluh")
+                    frac_spoken = num2word(int(frac))
+                    # Skip main unit if whole part is 0 (e.g., RM0.50 → "lima puluh sen", not "kosong ringgit lima puluh sen")
+                    if whole == "0":
+                        return f"{frac_spoken} {unit_sub}"
                     return f"{whole_spoken} {unit_main} {frac_spoken} {unit_sub}"
             else:
                 # Trailing decimal only, treat as whole number
@@ -628,7 +666,8 @@ class EntityExtractor:
 
         # Whole number amount
         if language == "en":
-            amount_spoken = normalize_en(amount_str)
+            # Use inflect for whole numbers (e.g., "10000" → "ten thousand")
+            amount_spoken = _inflect_engine.number_to_words(int(amount_str))
         else:
             # Use num2word for proper Malay number conversion
             amount_spoken = num2word(int(amount_str))

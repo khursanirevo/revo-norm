@@ -2,7 +2,16 @@ import re
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from revo_norm.abbreviation_utils import expand_abbreviations
-from revo_norm.currency_utils import CURRENCY_K_SUFFIX_PATTERN, expand_currency_k_suffix
+from revo_norm.currency_utils import (
+    CURRENCY_K_SUFFIX_PATTERN,
+    CURRENCY_M_SUFFIX_PATTERN,
+    CURRENCY_B_SUFFIX_PATTERN,
+    CURRENCY_T_SUFFIX_PATTERN,
+    expand_currency_k_suffix,
+    expand_currency_m_suffix,
+    expand_currency_b_suffix,
+    expand_currency_t_suffix,
+)
 from revo_norm.pronunciation_mappings import apply_pronunciation_mappings, remove_preservation_markers
 from revo_norm.malaya_inspired_utils import (
     normalize_elongated_text,
@@ -462,8 +471,12 @@ def normalize_text(
         # Use legacy flags (backward compatibility)
         effective_language = language
 
-    # Expand currency with K suffix FIRST (before URL/email conversion)
-    # This ensures RM30K becomes RM30000 before URL processing breaks it
+    # Expand currency suffixes FIRST (before URL/email conversion)
+    # Order matters: T → B → M → K (largest to smallest)
+    # This ensures RM1T/RM1B/RM1M/RM30K become full numbers before URL processing breaks them
+    text = CURRENCY_T_SUFFIX_PATTERN.sub(lambda m: expand_currency_t_suffix(m), text)
+    text = CURRENCY_B_SUFFIX_PATTERN.sub(lambda m: expand_currency_b_suffix(m), text)
+    text = CURRENCY_M_SUFFIX_PATTERN.sub(lambda m: expand_currency_m_suffix(m), text)
     text = CURRENCY_K_SUFFIX_PATTERN.sub(lambda m: expand_currency_k_suffix(m), text)
 
     # Convert emails and URLs (after K expansion to avoid breaking currency patterns)
@@ -571,9 +584,10 @@ def _normalize_with_entity_extraction(
 
         # Determine which entities to extract based on config
         # Always extract these (they have specific patterns that don't conflict)
+        # IMPORTANT: Extract EMAIL before URL to prevent URL pattern from matching domain in emails
         always_extract = [
-            EntityType.URL,
             EntityType.EMAIL,
+            EntityType.URL,
             EntityType.CURRENCY,  # Protect currency from acronym/abbreviation expansion
             EntityType.TEMPERATURE,
             EntityType.FRACTION,
@@ -642,6 +656,15 @@ def _normalize_with_entity_extraction(
 
         # Insert comma after repeated words
         protected_text = insert_comma_after_repeated_words(protected_text, min_repeat=3)
+
+        # Normalize measurements (distance, volume, weight, duration)
+        # These need to be processed on protected text to avoid interfering with entity placeholders
+        from revo_norm.malaya_inspired_utils import normalize_measurements, normalize_x_kali_text
+        protected_text = normalize_measurements(protected_text, effective_language)
+
+        # Normalize x-kali multiplier notation (10x, 5x, etc.)
+        # This should happen after measurements to avoid conflicts (e.g., "10x km")
+        protected_text = normalize_x_kali_text(protected_text, effective_language)
 
         # Phase 3: Restore entities as spoken form
         # Entities get converted directly without going through basic normalizer
