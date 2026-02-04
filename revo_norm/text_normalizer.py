@@ -42,10 +42,10 @@ def email_to_spoken(email: str, language: str = "en") -> str:
         >>> email_to_spoken("sugumaran_thiagarajan@yahoo.com", "en")
         'sugumaran underscore thiagarajan at yahoo dot com'
         >>> email_to_spoken("sugumaran_thiagarajan@yahoo.com", "ms")
-        'sugumaran underscore thiagarajan di yahoo dot com'
+        'sugumaran underscore thiagarajan at yahoo dot com'
     """
-    # Use language-specific word for @ symbol
-    at_word = "di" if language == "ms" else "at"
+    # Use "at" for @ symbol in both English and Malay
+    at_word = "at"
     spoken = email.replace("@", f" {at_word} ")
     # Replace all dots with " dot " (not just .com)
     spoken = spoken.replace(".", " dot ")
