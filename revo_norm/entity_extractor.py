@@ -12,10 +12,11 @@ Architecture:
 """
 
 import re
-import inflect
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
+
+import inflect
 
 
 class EntityType(str, Enum):
@@ -54,7 +55,7 @@ class Entity:
     text: str
     start: int
     end: int
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
     placeholder_id: int = 0
 
 
@@ -67,7 +68,7 @@ class EntityExtractor:
     """
 
     def __init__(self):
-        self.entities: List[Entity] = []
+        self.entities: list[Entity] = []
         self.next_id = 1
 
         # Entity patterns (sorted by specificity - most specific first)
@@ -201,8 +202,8 @@ class EntityExtractor:
     def extract(
         self,
         text: str,
-        enabled_entities: Optional[List[EntityType]] = None,
-    ) -> Tuple[str, List[Entity]]:
+        enabled_entities: Optional[list[EntityType]] = None,
+    ) -> tuple[str, list[Entity]]:
         """
         Extract all entities from text and replace with placeholders.
 
@@ -559,29 +560,20 @@ class EntityExtractor:
         """Get ordinal suffix for a number (1st, 2nd, 3rd, 4th, etc.)."""
         if 11 <= day <= 13:
             return "th"
-        last_digit = day % 10
-        if last_digit == 1:
-            return "st"
-        elif last_digit == 2:
-            return "nd"
-        elif last_digit == 3:
-            return "rd"
-        else:
-            return "th"
+        return {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
 
     def _convert_currency_to_spoken(self, currency_text: str, language: str) -> str:
         """Convert a currency amount to spoken form."""
         from revo_norm.currency_utils import (
-            expand_currency_k_suffix,
-            expand_currency_m_suffix,
-            expand_currency_b_suffix,
-            expand_currency_t_suffix,
+            CURRENCY_B_SUFFIX_PATTERN,
             CURRENCY_K_SUFFIX_PATTERN,
             CURRENCY_M_SUFFIX_PATTERN,
-            CURRENCY_B_SUFFIX_PATTERN,
             CURRENCY_T_SUFFIX_PATTERN,
+            expand_currency_b_suffix,
+            expand_currency_k_suffix,
+            expand_currency_m_suffix,
+            expand_currency_t_suffix,
         )
-        from revo_norm.normalizer_en import text_normalize as normalize_en
         from revo_norm.num2word import to_cardinal as num2word
 
         # Initialize inflect engine for English number-to-words conversion

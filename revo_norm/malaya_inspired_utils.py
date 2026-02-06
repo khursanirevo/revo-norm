@@ -6,7 +6,6 @@ including elongated words, fractions, temperature, and other common Malay patter
 """
 
 import re
-from typing import Dict
 
 
 # Elongated word normalization
@@ -312,7 +311,7 @@ _DURATION_PATTERN = re.compile(
 
 
 # Unit mappings for distance/volume/weight
-_DISTANCE_UNITS_EN: Dict[str, str] = {
+_DISTANCE_UNITS_EN: dict[str, str] = {
     "km": "kilometers",
     "m": "meters",
     "cm": "centimeters",
@@ -326,7 +325,7 @@ _DISTANCE_UNITS_EN: Dict[str, str] = {
     "inci": "inches",
 }
 
-_DISTANCE_UNITS_MS: Dict[str, str] = {
+_DISTANCE_UNITS_MS: dict[str, str] = {
     "km": "kilometer",
     "m": "meter",
     "cm": "sentimeter",
@@ -340,19 +339,19 @@ _DISTANCE_UNITS_MS: Dict[str, str] = {
     "inci": "inci",
 }
 
-_VOLUME_UNITS_EN: Dict[str, str] = {
+_VOLUME_UNITS_EN: dict[str, str] = {
     "ml": "milliliters",
     "l": "liters",
     "gal": "gallons",
 }
 
-_VOLUME_UNITS_MS: Dict[str, str] = {
+_VOLUME_UNITS_MS: dict[str, str] = {
     "ml": "mililiter",
     "l": "liter",
     "gal": "gelen",
 }
 
-_WEIGHT_UNITS_EN: Dict[str, str] = {
+_WEIGHT_UNITS_EN: dict[str, str] = {
     "kg": "kilograms",
     "g": "grams",
     "mg": "milligrams",
@@ -360,7 +359,7 @@ _WEIGHT_UNITS_EN: Dict[str, str] = {
     "oz": "ounces",
 }
 
-_WEIGHT_UNITS_MS: Dict[str, str] = {
+_WEIGHT_UNITS_MS: dict[str, str] = {
     "kg": "kilogram",
     "g": "gram",
     "mg": "miligram",
@@ -368,7 +367,7 @@ _WEIGHT_UNITS_MS: Dict[str, str] = {
     "oz": "auns",
 }
 
-_DURATION_UNITS_EN: Dict[str, str] = {
+_DURATION_UNITS_EN: dict[str, str] = {
     "jam": "hours",
     "minit": "minutes",
     "saat": "seconds",
@@ -380,7 +379,7 @@ _DURATION_UNITS_EN: Dict[str, str] = {
     "seconds": "seconds",
 }
 
-_DURATION_UNITS_MS: Dict[str, str] = {
+_DURATION_UNITS_MS: dict[str, str] = {
     "jam": "jam",
     "minit": "minit",
     "saat": "saat",
@@ -537,7 +536,7 @@ def normalize_hari_bulan_text(text: str, language: str = "en") -> str:
 
     # Use a unique placeholder that cannot appear in normal text
     # This prevents interference from other normalizers (e.g., contraction handling)
-    PLACEHOLDER = "__HARI_BULAN__"
+    PLACEHOLDER = "__HARI_BULAN__"  # noqa: N806
 
     def replace_hb(match):
         from revo_norm.normalizer_en import text_normalize as normalize_en

@@ -13,7 +13,6 @@ Features:
 
 import random
 import re
-from typing import List, Tuple
 
 
 def normalize_problematic_chars(text: str) -> str:
@@ -42,9 +41,9 @@ def normalize_problematic_chars(text: str) -> str:
     return text.strip()
 
 
-def parse_sound_word_field(user_input: str) -> List[Tuple[str, str]]:
+def parse_sound_word_field(user_input: str) -> list[tuple[str, str]]:
     """Parse sound word field input into list of (pattern, replacement) tuples."""
-    lines = [l.strip() for l in user_input.split("\n") if l.strip()]
+    lines = [line.strip() for line in user_input.split("\n") if line.strip()]
     result = []
     for line in lines:
         if "=>" in line:
@@ -55,18 +54,18 @@ def parse_sound_word_field(user_input: str) -> List[Tuple[str, str]]:
     return result
 
 
-def smart_remove_sound_words(text: str, sound_words: List[Tuple[str, str]]) -> str:
+def smart_remove_sound_words(text: str, sound_words: list[tuple[str, str]]) -> str:
     """Remove or replace sound words like [laughter], [applause] from text."""
     for pattern, replacement in sound_words:
         if replacement:
             text = re.sub(
-                r"(?i)(%s)([" "']s?)" % re.escape(pattern),
-                lambda m: replacement + "'s" if m.group(2) else replacement,
+                rf"(?i)({re.escape(pattern)})([" "']s?)",
+                lambda m, repl=replacement: repl + "'s" if m.group(2) else repl,
                 text,
             )
             text = re.sub(
-                r'(["\'])%s(["\'])' % re.escape(pattern),
-                lambda m: f"{m.group(1)}{replacement}{m.group(2)}",
+                rf'(["\']){re.escape(pattern)}(["\'])',
+                lambda m, repl=replacement: f"{m.group(1)}{repl}{m.group(2)}",
                 text,
                 flags=re.IGNORECASE,
             )
@@ -74,10 +73,10 @@ def smart_remove_sound_words(text: str, sound_words: List[Tuple[str, str]]) -> s
                 text = re.sub(re.escape(pattern), replacement, text)
             else:
                 text = re.sub(
-                    r"\b%s\b" % re.escape(pattern), replacement, text, flags=re.IGNORECASE
+                    rf"\b{re.escape(pattern)}\b", replacement, text, flags=re.IGNORECASE
                 )
         else:
-            text = re.sub(r"%s" % re.escape(pattern), "", text, flags=re.IGNORECASE)
+            text = re.sub(rf"{re.escape(pattern)}", "", text, flags=re.IGNORECASE)
 
     text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
     text = re.sub(r"([,\s]+,)+", ",", text)
@@ -91,7 +90,7 @@ def smart_remove_sound_words(text: str, sound_words: List[Tuple[str, str]]) -> s
 
 def split_repetitive_sequences(
     text: str, min_repeat_length: int = 1, repeat_threshold: int = 3
-) -> List[str]:
+) -> list[str]:
     """Split text with repetitive sequences into separate segments."""
     original_words = text.split()
     clean_words = [re.sub(r"[^\w\s]", "", w).lower() for w in original_words]
@@ -156,7 +155,7 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
 
     new_words = []
     word_count = 0
-    last_punctuation_pos = -float("inf")  # Track position of last punctuation
+    -float("inf")  # Track position of last punctuation
 
     for i, word in enumerate(words):
         new_words.append(word)
@@ -167,7 +166,7 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
 
         # Update last punctuation position
         if ends_sentence or has_comma:
-            last_punctuation_pos = i
+            pass
 
         # Only consider adding comma if:
         # 1. Not at end of sentence
@@ -196,16 +195,13 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
                     if random.random() < chance:
                         new_words.append(",")
                         word_count = 0
-                        last_punctuation_pos = i
                 elif word_count >= max_words:
                     # Force comma if max words reached (but still check for upcoming punctuation)
                     if not upcoming_punctuation and i < len(words) - 3:
                         new_words.append(",")
                         word_count = 0
-                        last_punctuation_pos = i
         elif ends_sentence or has_comma:
             word_count = 0
-            last_punctuation_pos = i
 
     return " ".join(new_words).replace(" ,", ",")
 

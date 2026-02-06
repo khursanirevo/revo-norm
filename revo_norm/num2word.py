@@ -83,10 +83,7 @@ def spell(blocks):
     word_blocks = ()
     first_block = blocks[0]
     if len(first_block[0]) == 1:
-        if first_block[0] == "0":
-            spelling = ["kosong"]
-        else:
-            spelling = BASE[int(first_block[0])]
+        spelling = ["kosong"] if first_block[0] == "0" else BASE[int(first_block[0])]
     elif len(first_block[0]) == 2:
         spelling = puluh(first_block[0])
     else:

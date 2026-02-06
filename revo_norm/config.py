@@ -14,7 +14,7 @@ Example:
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 
 class Profile(str, Enum):
@@ -88,7 +88,7 @@ class FeatureLevel(str, Enum):
 
 
 # Profile definitions: feature_group -> level for each profile
-_PROFILE_DEFINITIONS: Dict[Profile, Dict[FeatureGroup, FeatureLevel]] = {
+_PROFILE_DEFINITIONS: dict[Profile, dict[FeatureGroup, FeatureLevel]] = {
     Profile.MINIMAL: {
         FeatureGroup.NUMBERS: FeatureLevel.BASIC,
         FeatureGroup.ENTITIES: FeatureLevel.STANDARD,
@@ -161,9 +161,9 @@ class NormalizationConfig:
 
     profile: Union[Profile, str] = Profile.STANDARD
     language: Optional[str] = None
-    features: Dict[FeatureGroup, FeatureLevel] = field(default_factory=dict)
-    sound_words: List[str] = field(default_factory=list)
-    custom_rules: Dict[str, str] = field(default_factory=dict)
+    features: dict[FeatureGroup, FeatureLevel] = field(default_factory=dict)
+    sound_words: list[str] = field(default_factory=list)
+    custom_rules: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -209,7 +209,7 @@ class NormalizationConfig:
         self.features[group] = level
         return self
 
-    def with_sound_words(self, words: List[str]):
+    def with_sound_words(self, words: list[str]):
         """
         Set sound words to remove (builder pattern).
 
@@ -272,10 +272,7 @@ class NormalizationConfig:
             return False
 
         # Malay-specific features only run for Malay
-        if group == FeatureGroup.MALAY_LOCAL and language != "ms":
-            return False
-
-        return True
+        return not (group == FeatureGroup.MALAY_LOCAL and language != "ms")
 
     def to_legacy_flags(self, language: str) -> dict:
         """

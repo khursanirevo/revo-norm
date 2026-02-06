@@ -92,10 +92,7 @@ def normalize_time(m):
 
     meridian_word = ""
     if meridian:
-        if len(meridian) > 2:
-            meridian_word = meridian
-        else:
-            meridian_word = f"{meridian[0]} m"
+        meridian_word = meridian if len(meridian) > 2 else f"{meridian[0]} m"
 
     if minute_word == "kosong":
         return f"{hour_word} {meridian_word}".strip()

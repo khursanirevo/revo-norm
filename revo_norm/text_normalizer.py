@@ -1,19 +1,16 @@
 import re
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 from revo_norm.abbreviation_utils import expand_abbreviations
 from revo_norm.currency_utils import (
+    CURRENCY_B_SUFFIX_PATTERN,
     CURRENCY_K_SUFFIX_PATTERN,
     CURRENCY_M_SUFFIX_PATTERN,
-    CURRENCY_B_SUFFIX_PATTERN,
     CURRENCY_T_SUFFIX_PATTERN,
+    expand_currency_b_suffix,
     expand_currency_k_suffix,
     expand_currency_m_suffix,
-    expand_currency_b_suffix,
     expand_currency_t_suffix,
-)
-from revo_norm.pronunciation_mappings import (
-    apply_pronunciation_mappings,
 )
 from revo_norm.malaya_inspired_utils import (
     normalize_elongated_text,
@@ -27,6 +24,9 @@ from revo_norm.malaya_inspired_utils import (
 )
 from revo_norm.normalizer_en import text_normalize as text_normalizer_en
 from revo_norm.normalizer_ms import normalize_malay as text_normalizer_ms
+from revo_norm.pronunciation_mappings import (
+    apply_pronunciation_mappings,
+)
 
 # Type check import to avoid circular dependency
 if TYPE_CHECKING:
@@ -242,12 +242,12 @@ def expand_acronym(acronym: str) -> str:
     vowels = set("aeiou")  # Lowercase for comparison
 
     # Preserve as-is (not split, not modified)
-    PRESERVE_THESE = {"NASA"}  # Add more as needed
+    PRESERVE_THESE = {"NASA"}  # noqa: N806 - Add more as needed
     if acronym in PRESERVE_THESE:
         return acronym
 
     # Special cases: always split (add more as we find them)
-    SPLIT_THESE = {"API", "GPU", "CPU"}
+    SPLIT_THESE = {"API", "GPU", "CPU"}  # noqa: N806
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
 
@@ -267,13 +267,13 @@ def expand_acronym(acronym: str) -> str:
         return " ".join(list(acronym))
 
 
-def split_into_sentences(text: str) -> List[str]:
+def split_into_sentences(text: str) -> list[str]:
     """Split text into sentences using basic regex."""
     sentence_endings = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
     return [s.strip() for s in sentence_endings.split(text) if s.strip()]
 
 
-def parse_sound_word_field(user_input: str) -> List[Tuple[str, str]]:
+def parse_sound_word_field(user_input: str) -> list[tuple[str, str]]:
     """Parse sound word field input into list of (pattern, replacement) tuples."""
     lines = [line.strip() for line in user_input.split("\n") if line.strip()]
     result = []
@@ -286,23 +286,23 @@ def parse_sound_word_field(user_input: str) -> List[Tuple[str, str]]:
     return result
 
 
-def smart_remove_sound_words(text: str, sound_words: List[Tuple[str, str]]) -> str:
+def smart_remove_sound_words(text: str, sound_words: list[tuple[str, str]]) -> str:
     """Remove or replace sound words like [laughter], [applause] from text."""
     for pattern, replacement in sound_words:
         if replacement:
             text = re.sub(
-                r"(?i)(%s)([" r"'\u2019`s?])" % re.escape(pattern),
-                lambda m: replacement + "'s" if m.group(2) else replacement,
+                rf"(?i)({re.escape(pattern)})([" r"'\u2019`s?])",
+                lambda m, repl=replacement: repl + "'s" if m.group(2) else repl,
                 text,
             )
             if all(char in "-—-" for char in pattern.strip()):
                 text = re.sub(re.escape(pattern), replacement, text)
             else:
                 text = re.sub(
-                    r"\b%s\b" % re.escape(pattern), replacement, text, flags=re.IGNORECASE
+                    rf"\b{re.escape(pattern)}\b", replacement, text, flags=re.IGNORECASE
                 )
         else:
-            text = re.sub(r"%s" % re.escape(pattern), "", text, flags=re.IGNORECASE)
+            text = re.sub(rf"{re.escape(pattern)}", "", text, flags=re.IGNORECASE)
 
     # Use pre-compiled patterns
     text = _CAMEL_CASE_PATTERN.sub(r"\1 \2", text)
@@ -367,7 +367,7 @@ def apply_pronunciation_overrides(text: str) -> str:
         text = pattern.sub(replacement, text)
 
     # Apply unit patterns
-    for unit, (pattern, spoken) in _PRONUNCIATION_UNIT_MAP.items():
+    for _unit, (pattern, spoken) in _PRONUNCIATION_UNIT_MAP.items():
         text = pattern.sub(rf"\1 {spoken}", text)
 
     return text

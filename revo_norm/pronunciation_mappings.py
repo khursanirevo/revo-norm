@@ -10,11 +10,10 @@ NOTE: JSON, JPEG, PNG and similar acronyms are now handled by a generalized
 rule in expand_acronym() - they don't need explicit mappings here.
 """
 
-from typing import Dict
 
 # Single pronunciation mapping for all languages (English and Malay)
 # Tech terms are pronounced the same way in both languages for Malaysian context
-PRONUNCIATION_MAPPINGS: Dict[str, str] = {
+PRONUNCIATION_MAPPINGS: dict[str, str] = {
     # Malay honorifics - pronounced fully for TTS
     "Hj": "Haji",
     "Hjh": "Hajah",
@@ -26,7 +25,6 @@ PRONUNCIATION_MAPPINGS: Dict[str, str] = {
     "Dato'": "Dato",
     "Datin": "Datin",
     "Datuk": "Datuk",
-    "Datin": "Datin",
     "AMN": "Ahli Mangku Negara",
     "JSM": "Johan Setia Mahkota",
     "JPM": "Johan Setia Persekutuan",
@@ -44,7 +42,7 @@ PRONUNCIATION_MAPPINGS: Dict[str, str] = {
 }
 
 
-def get_pronunciation_mappings(language: str = "en") -> Dict[str, str]:
+def get_pronunciation_mappings(language: str = "en") -> dict[str, str]:
     """
     Get pronunciation mappings for a language.
 
