@@ -24,34 +24,34 @@ def normalize_problematic_chars(text: str) -> str:
     - Excessive quote sequences
     """
     # Replace em dashes and en dashes with commas or spaces (for pauses)
-    text = re.sub(r'[—–]', ', ', text)
+    text = re.sub(r"[—–]", ", ", text)
 
     # Normalize all quote variations to straight single quotes
     text = text.replace('"', "'").replace('"', "'")
-    text = text.replace(''', "'").replace(''', "'")
-    text = text.replace('`', "'")  # Backtick to quote
+    text = text.replace(""", "'").replace(""", "'")
+    text = text.replace("`", "'")  # Backtick to quote
 
     # Remove excessive quote sequences but keep single quotes for dialogue
     text = re.sub(r"'+", "'", text)
     text = re.sub(r'"+', '"', text)
 
     # Clean up any double spaces or commas
-    text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r',\s*,', ',', text)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r",\s*,", ",", text)
 
     return text.strip()
 
 
 def parse_sound_word_field(user_input: str) -> List[Tuple[str, str]]:
     """Parse sound word field input into list of (pattern, replacement) tuples."""
-    lines = [l.strip() for l in user_input.split('\n') if l.strip()]
+    lines = [l.strip() for l in user_input.split("\n") if l.strip()]
     result = []
     for line in lines:
-        if '=>' in line:
-            pattern, replacement = line.split('=>', 1)
+        if "=>" in line:
+            pattern, replacement = line.split("=>", 1)
             result.append((pattern.strip(), replacement.strip()))
         else:
-            result.append((line, ''))
+            result.append((line, ""))
     return result
 
 
@@ -60,47 +60,41 @@ def smart_remove_sound_words(text: str, sound_words: List[Tuple[str, str]]) -> s
     for pattern, replacement in sound_words:
         if replacement:
             text = re.sub(
-                r'(?i)(%s)([''\']s?)' % re.escape(pattern),
+                r"(?i)(%s)([" "']s?)" % re.escape(pattern),
                 lambda m: replacement + "'s" if m.group(2) else replacement,
-                text
+                text,
             )
             text = re.sub(
                 r'(["\'])%s(["\'])' % re.escape(pattern),
                 lambda m: f"{m.group(1)}{replacement}{m.group(2)}",
                 text,
-                flags=re.IGNORECASE
+                flags=re.IGNORECASE,
             )
             if all(char in "-——" for char in pattern.strip()):
                 text = re.sub(re.escape(pattern), replacement, text)
             else:
                 text = re.sub(
-                    r'\b%s\b' % re.escape(pattern),
-                    replacement,
-                    text,
-                    flags=re.IGNORECASE
+                    r"\b%s\b" % re.escape(pattern), replacement, text, flags=re.IGNORECASE
                 )
         else:
-            text = re.sub(
-                r'%s' % re.escape(pattern),
-                '',
-                text,
-                flags=re.IGNORECASE
-            )
+            text = re.sub(r"%s" % re.escape(pattern), "", text, flags=re.IGNORECASE)
 
-    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
-    text = re.sub(r'([,\s]+,)+', ',', text)
-    text = re.sub(r',\s*,+', ',', text)
-    text = re.sub(r'\s{2,}', ' ', text)
-    text = re.sub(r'(\s+,|,\s+)', ', ', text)
-    text = re.sub(r'(^|[\.!\?]\s*),+', r'\1', text)
-    text = re.sub(r',+\s*([\.!\?])', r'\1', text)
+    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"([,\s]+,)+", ",", text)
+    text = re.sub(r",\s*,+", ",", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    text = re.sub(r"(\s+,|,\s+)", ", ", text)
+    text = re.sub(r"(^|[\.!\?]\s*),+", r"\1", text)
+    text = re.sub(r",+\s*([\.!\?])", r"\1", text)
     return text.strip()
 
 
-def split_repetitive_sequences(text: str, min_repeat_length: int = 1, repeat_threshold: int = 3) -> List[str]:
+def split_repetitive_sequences(
+    text: str, min_repeat_length: int = 1, repeat_threshold: int = 3
+) -> List[str]:
     """Split text with repetitive sequences into separate segments."""
     original_words = text.split()
-    clean_words = [re.sub(r'[^\w\s]', '', w).lower() for w in original_words]
+    clean_words = [re.sub(r"[^\w\s]", "", w).lower() for w in original_words]
 
     if len(clean_words) < min_repeat_length * repeat_threshold:
         return [text]
@@ -113,10 +107,10 @@ def split_repetitive_sequences(text: str, min_repeat_length: int = 1, repeat_thr
         found_repetition = False
         for length in range(min_repeat_length, (len(clean_words) - i) // repeat_threshold + 1):
             if i + length * repeat_threshold <= len(clean_words):
-                pattern = clean_words[i:i+length]
+                pattern = clean_words[i : i + length]
                 is_repetitive = True
                 for k in range(1, repeat_threshold):
-                    if clean_words[i + k*length : i + (k+1)*length] != pattern:
+                    if clean_words[i + k * length : i + (k + 1) * length] != pattern:
                         is_repetitive = False
                         break
 
@@ -125,7 +119,9 @@ def split_repetitive_sequences(text: str, min_repeat_length: int = 1, repeat_thr
                         segments.append(" ".join(current_segment_words))
                         current_segment_words = []
 
-                    segments.append(" ".join(original_words[i : i + length * repeat_threshold]) + ".")
+                    segments.append(
+                        " ".join(original_words[i : i + length * repeat_threshold]) + "."
+                    )
                     i += length * repeat_threshold
                     found_repetition = True
                     break
@@ -160,14 +156,14 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
 
     new_words = []
     word_count = 0
-    last_punctuation_pos = -float('inf')  # Track position of last punctuation
+    last_punctuation_pos = -float("inf")  # Track position of last punctuation
 
     for i, word in enumerate(words):
         new_words.append(word)
 
         # Check if current word has sentence-ending punctuation
-        ends_sentence = re.search(r'[.!?]$', word)
-        has_comma = ',' in word
+        ends_sentence = re.search(r"[.!?]$", word)
+        has_comma = "," in word
 
         # Update last punctuation position
         if ends_sentence or has_comma:
@@ -186,7 +182,7 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
                 # Check if there's punctuation coming up soon (within 2-3 words)
                 upcoming_punctuation = False
                 for j in range(i + 1, min(i + 4, len(words))):
-                    if re.search(r'[.!?,:;]', words[j]):
+                    if re.search(r"[.!?,:;]", words[j]):
                         upcoming_punctuation = True
                         break
 
@@ -198,20 +194,20 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
                     # Higher chance as word count increases
                     chance = word_count / max_words
                     if random.random() < chance:
-                        new_words.append(',')
+                        new_words.append(",")
                         word_count = 0
                         last_punctuation_pos = i
                 elif word_count >= max_words:
                     # Force comma if max words reached (but still check for upcoming punctuation)
                     if not upcoming_punctuation and i < len(words) - 3:
-                        new_words.append(',')
+                        new_words.append(",")
                         word_count = 0
                         last_punctuation_pos = i
         elif ends_sentence or has_comma:
             word_count = 0
             last_punctuation_pos = i
 
-    return ' '.join(new_words).replace(' ,', ',')
+    return " ".join(new_words).replace(" ,", ",")
 
 
 def split_text_by_words(text: str, max_chars: int = 150) -> list[str]:

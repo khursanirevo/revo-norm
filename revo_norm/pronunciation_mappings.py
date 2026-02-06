@@ -5,127 +5,42 @@ This module provides explicit pronunciation mappings that should be applied
 BEFORE any other transformations (acronym expansion, abbreviation expansion, etc.).
 
 These mappings have the HIGHEST PRIORITY in the normalization pipeline.
+
+NOTE: JSON, JPEG, PNG and similar acronyms are now handled by a generalized
+rule in expand_acronym() - they don't need explicit mappings here.
 """
 
 from typing import Dict
 
-# English pronunciation mappings
-PRONUNCIATION_MAPPINGS_EN: Dict[str, str] = {
-    # Technology terms - specific pronunciations
-    "JSON": "jay son",
+# Single pronunciation mapping for all languages (English and Malay)
+# Tech terms are pronounced the same way in both languages for Malaysian context
+PRONUNCIATION_MAPPINGS: Dict[str, str] = {
+    # Malay honorifics - pronounced fully for TTS
+    "Hj": "Haji",
+    "Hjh": "Hajah",
+    "Dr": "Doktor",
+    "Dr.": "Doktor",
+    "Prof": "Profesor",
+    "Prof.": "Profesor",
+    "Dato": "Dato",
+    "Dato'": "Dato",
+    "Datin": "Datin",
+    "Datuk": "Datuk",
+    "Datin": "Datin",
+    "AMN": "Ahli Mangku Negara",
+    "JSM": "Johan Setia Mahkota",
+    "JPM": "Johan Setia Persekutuan",
+    "PSM": "Panglima Setia Mahkota",
+    "SSM": "Setia Sultan Muhammad",
+    "SIM": "Setia Mahkota Pahang",
+    "SMP": "Setia Mahkota Perak",
+    # Technology terms with special pronunciations (not following generalized rule)
     "GUI": "gooey",
-    "SQL": "S Q L",  # Can also be "sequel" depending on preference
-    "AJAX": "A JAX",
-    "XML": "X M L",
-    "HTML": "H T M L",
-    "CSS": "C S S",
-    "HTTP": "H T T P",
-    "HTTPS": "H T T P S",
-    "FTP": "F T P",
-    "SDK": "S D K",
-    "CLI": "C L I",
-    "UTF": "U T F",
     "ASCII": "as key",
     "IEEE": "I triple E",
-    "UUID": "U U I D",
-    "PNG": "ping",
-    "JPEG": "J peg",
     "GIF": "gif",
-    "SVG": "S V G",
-    "PDF": "P D F",
-    "URL": "U R L",
-    "URI": "U R I",
-    "OAuth": "O auth",
     "WiFi": "why fi",
     "iOS": "I O S",
-    "VoIP": "V O I P",
-
-    # Tech acronyms - preserve as-is (not split)
-    # These are mapped to themselves to prevent acronym splitting
-    "API": "API",
-    "ML": "ML",
-    "AI": "AI",
-    "LLM": "LLM",
-    "GPU": "GPU",
-    "CPU": "CPU",
-    "RAM": "RAM",
-    "ROM": "ROM",
-    "SSD": "SSD",
-    "HDD": "HDD",
-    "OS": "OS",
-    "UI": "UI",
-    "UX": "UX",
-    "NLP": "NLP",
-    "CV": "CV",  # Computer Vision
-    "NLU": "NLU",
-    "NLG": "NLG",
-    "RAG": "RAG",
-    "GPT": "GPT",
-    "BERT": "BERT",
-    "TF": "TF",  # TensorFlow
-    "PyTorch": "PyTorch",
-    "Keras": "Keras",
-    "pandas": "pandas",
-    "numpy": "numpy",
-}
-
-# Malay pronunciation mappings
-PRONUNCIATION_MAPPINGS_MS: Dict[str, str] = {
-    # Technology terms (maintain English pronunciation generally)
-    "JSON": "jay son",
-    "GUI": "gooey",
-    "SQL": "S Q L",
-    "AJAX": "A JAX",
-    "XML": "X M L",
-    "HTML": "H T M L",
-    "CSS": "C S S",
-    "HTTP": "H T T P",
-    "HTTPS": "H T T P S",
-    "FTP": "F T P",
-    "SDK": "S D K",
-    "CLI": "C L I",
-    "UTF": "U T F",
-    "ASCII": "as key",
-    "IEEE": "I triple E",
-    "UUID": "U U I D",
-    "PNG": "ping",
-    "JPEG": "J peg",
-    "GIF": "gif",
-    "SVG": "S V G",
-    "PDF": "P D F",
-    "URL": "U R L",
-    "URI": "U R I",
-    "OAuth": "O auth",
-    "WiFi": "why fi",
-    "iOS": "I O S",
-    "VoIP": "V O I P",
-
-    # Tech acronyms - preserve as-is (not split)
-    "API": "API",
-    "ML": "ML",
-    "AI": "AI",
-    "LLM": "LLM",
-    "GPU": "GPU",
-    "CPU": "CPU",
-    "RAM": "RAM",
-    "ROM": "ROM",
-    "SSD": "SSD",
-    "HDD": "HDD",
-    "OS": "OS",
-    "UI": "UI",
-    "UX": "UX",
-    "NLP": "NLP",
-    "CV": "CV",
-    "NLU": "NLU",
-    "NLG": "NLG",
-    "RAG": "RAG",
-    "GPT": "GPT",
-    "BERT": "BERT",
-    "TF": "TF",
-    "PyTorch": "PyTorch",
-    "Keras": "Keras",
-    "pandas": "pandas",
-    "numpy": "numpy",
 }
 
 
@@ -135,16 +50,13 @@ def get_pronunciation_mappings(language: str = "en") -> Dict[str, str]:
 
     Args:
         language: Language code ('en' for English, 'ms' for Malay)
+                  Note: Same mappings used for both languages
 
     Returns:
         Dictionary mapping terms to their spoken forms
     """
-    if language == "en":
-        return PRONUNCIATION_MAPPINGS_EN.copy()
-    elif language == "ms":
-        return PRONUNCIATION_MAPPINGS_MS.copy()
-    else:
-        return {}
+    # Return a copy to prevent modification of the original
+    return PRONUNCIATION_MAPPINGS.copy()
 
 
 def apply_pronunciation_mappings(text: str, language: str = "en") -> str:
@@ -154,9 +66,9 @@ def apply_pronunciation_mappings(text: str, language: str = "en") -> str:
     This should be called FIRST in the normalization pipeline, before any
     other transformations. Mappings are applied as whole-word matches only.
 
-    Terms that are mapped to themselves (e.g., "ML" → "ML") are marked with
-    a special prefix to prevent them from being processed by later
-    transformations like acronym expansion.
+    NOTE: Only contains actual pronunciation changes (GUI → gooey, etc.).
+    Tech acronyms (API, ML, GPU, etc.) are handled by the generalized rule
+    in expand_acronym() and will be split letter-by-letter.
 
     Args:
         text: Input text
@@ -166,10 +78,10 @@ def apply_pronunciation_mappings(text: str, language: str = "en") -> str:
         Text with pronunciation mappings applied
 
     Example:
-        >>> apply_pronunciation_mappings("Parse JSON file", "en")
-        'Parse jay son file'
-        >>> apply_pronunciation_mappings("JSON API", "en")
-        'jay son __PRESERVED__API__'
+        >>> apply_pronunciation_mappings("Build GUI interface", "en")
+        'Build gooey interface'
+        >>> apply_pronunciation_mappings("Train ML model", "en")
+        'Train ML model'  # No change, handled by generalized rule later
     """
     import re
 
@@ -178,21 +90,14 @@ def apply_pronunciation_mappings(text: str, language: str = "en") -> str:
         return text
 
     # Sort by length (longest first) to handle overlapping matches
-    # e.g., "HTTPS" before "HTTP"
+    # e.g., "PyTorch" before "torch"
     sorted_mappings = sorted(mappings.items(), key=lambda x: len(x[0]), reverse=True)
 
     result = text
     for term, pronunciation in sorted_mappings:
         # Case-insensitive whole word match
         pattern = re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE)
-
-        # If mapping to itself, add preservation marker to prevent acronym expansion
-        if term.upper() == pronunciation.upper():
-            # Mark as preserved to prevent acronym/abbreviation expansion
-            result = pattern.sub(rf"__PRESERVED__{pronunciation}__", result)
-        else:
-            # Normal pronunciation mapping (e.g., JSON → jay son)
-            result = pattern.sub(pronunciation, result)
+        result = pattern.sub(pronunciation, result)
 
     return result
 
@@ -215,6 +120,7 @@ def remove_preservation_markers(text: str) -> str:
         'Train ML model'
     """
     import re
+
     return re.sub(r"__PRESERVED__(.+?)__", r"\1", text)
 
 
@@ -224,10 +130,7 @@ def add_custom_mapping(term: str, pronunciation: str, language: str = "en") -> N
 
     Args:
         term: The term to map (e.g., "JSON")
-        pronunciation: The spoken form (e.g., "jay son")
-        language: Language code ('en' or 'ms')
+        pronunciation: The spoken form (e.g., "J son")
+        language: Language code ('en' or 'ms') - ignored, applies to both
     """
-    if language == "en":
-        PRONUNCIATION_MAPPINGS_EN[term] = pronunciation
-    elif language == "ms":
-        PRONUNCIATION_MAPPINGS_MS[term] = pronunciation
+    PRONUNCIATION_MAPPINGS[term] = pronunciation

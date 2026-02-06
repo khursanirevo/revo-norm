@@ -12,7 +12,9 @@ from revo_norm.currency_utils import (
     expand_currency_b_suffix,
     expand_currency_t_suffix,
 )
-from revo_norm.pronunciation_mappings import apply_pronunciation_mappings, remove_preservation_markers
+from revo_norm.pronunciation_mappings import (
+    apply_pronunciation_mappings,
+)
 from revo_norm.malaya_inspired_utils import (
     normalize_elongated_text,
     normalize_fractions,
@@ -200,9 +202,9 @@ def replace_letter_period_sequences(text: str, process_acronyms: bool = True) ->
             # Use the existing expand_acronym logic
             return expand_acronym(acronym)
 
-        # Match 2-4 consecutive uppercase letters that form a word
-        # This catches things like IBM, API, CPU that weren't caught by letter-period pattern
-        text = re.sub(r"\b[A-Z]{2,4}\b", replacer_caps, text)
+        # Match 2-6 consecutive uppercase letters that form a word
+        # This catches things like IBM, API, CPU, HTTPS, IEEE that weren't caught by letter-period pattern
+        text = re.sub(r"\b[A-Z]{2,6}\b", replacer_caps, text)
 
     return text
 
@@ -217,22 +219,45 @@ def remove_inline_reference_numbers(text: str) -> str:
     return re.sub(pattern, r"\1", text)
 
 
-def is_pronounceable(acronym: str) -> bool:
-    """Check if an acronym is pronounceable based on vowel count."""
-    vowels = set("AEIOUaeiou")
-    return sum(ch in vowels for ch in acronym) >= 2
-
-
-KNOWN_LETTERWISE = {"UOB", "UIA", "UITM", "KLIA", "KLIA2"}
-
-
 def expand_acronym(acronym: str) -> str:
-    """Expand an acronym into spoken form."""
-    if acronym in KNOWN_LETTERWISE:
+    """Expand an acronym into spoken form.
+
+    Generalized rule:
+    1. Special cases → split letter-by-letter (even with vowels)
+       - "API" → "A P I"
+       - "GPU" → "G P U"
+       - "CPU" → "C P U"
+    2. If rest has consonant-vowel-consonant pattern (c-v-c) → pronounceable
+       - "JSON" → "J son" (rest="son" matches c-v-c)
+       - "JPEG" → "J peg" (rest="peg" matches c-v-c)
+       - "GIF" → "gif" (rest="if" matches c-v-c)
+    3. Otherwise → split ALL letters letter-by-letter
+       - "NASA" → "N A S A" (rest="asa" doesn't match c-v-c)
+       - "ML" → "M L"
+    """
+    rest = acronym[1:].lower()
+    vowels = set("aeiou")  # Lowercase for comparison
+
+    # Special cases: always split (add more as we find them)
+    SPLIT_THESE = {"API", "GPU", "CPU"}
+
+    if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
-    if is_pronounceable(acronym) and len(acronym) > 3:
-        return acronym
-    return " ".join(list(acronym))
+
+    # If 3+ letters AND starts with consonant AND ends with consonant (c-v-c pattern)
+    # → treat as pronounceable word (first letter + rest lowercase)
+    if len(rest) >= 3 and rest[0] not in vowels and rest[-1] not in vowels:
+        return f"{acronym[0]} {rest}"
+    # Otherwise spell all letters letter-by-letter
+    else:
+        return " ".join(list(acronym))
+
+    # If rest has vowels, split only first letter (lowercase the rest)
+    if any(ch in vowels for ch in rest):
+        return f"{acronym[0]} {rest.lower()}"
+    # Otherwise spell all letters
+    else:
+        return " ".join(list(acronym))
 
 
 def split_into_sentences(text: str) -> List[str]:
@@ -548,11 +573,6 @@ def normalize_text(
     # Apply special character replacements
     text = special_replace(text, effective_language)
 
-    # Remove preservation markers from pronunciation mappings
-    # This must be done LAST to prevent acronym/abbreviation expansion
-    # from interfering with preserved terms
-    text = remove_preservation_markers(text)
-
     return text
 
 
@@ -663,6 +683,7 @@ def _normalize_with_entity_extraction(
         # Normalize measurements (distance, volume, weight, duration)
         # These need to be processed on protected text to avoid interfering with entity placeholders
         from revo_norm.malaya_inspired_utils import normalize_measurements, normalize_x_kali_text
+
         protected_text = normalize_measurements(protected_text, effective_language)
 
         # Normalize x-kali multiplier notation (10x, 5x, etc.)
@@ -672,9 +693,6 @@ def _normalize_with_entity_extraction(
         # Phase 3: Restore entities as spoken form
         # Entities get converted directly without going through basic normalizer
         result = extractor.restore(protected_text, effective_language)
-
-        # Remove preservation markers from pronunciation mappings
-        result = remove_preservation_markers(result)
 
         return result
 

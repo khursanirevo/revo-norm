@@ -595,15 +595,9 @@ class EntityExtractor:
         expanded = CURRENCY_T_SUFFIX_PATTERN.sub(
             lambda m: expand_currency_t_suffix(m), currency_text
         )
-        expanded = CURRENCY_B_SUFFIX_PATTERN.sub(
-            lambda m: expand_currency_b_suffix(m), expanded
-        )
-        expanded = CURRENCY_M_SUFFIX_PATTERN.sub(
-            lambda m: expand_currency_m_suffix(m), expanded
-        )
-        expanded = CURRENCY_K_SUFFIX_PATTERN.sub(
-            lambda m: expand_currency_k_suffix(m), expanded
-        )
+        expanded = CURRENCY_B_SUFFIX_PATTERN.sub(lambda m: expand_currency_b_suffix(m), expanded)
+        expanded = CURRENCY_M_SUFFIX_PATTERN.sub(lambda m: expand_currency_m_suffix(m), expanded)
+        expanded = CURRENCY_K_SUFFIX_PATTERN.sub(lambda m: expand_currency_k_suffix(m), expanded)
 
         # Parse the currency amount
         # Pattern: (RM|USD|EUR|GBP|MYR|$|£|€) + optional space + amount
