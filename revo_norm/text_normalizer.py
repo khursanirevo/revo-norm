@@ -223,24 +223,31 @@ def expand_acronym(acronym: str) -> str:
     """Expand an acronym into spoken form.
 
     Generalized rule:
-    1. Special cases → split letter-by-letter (even with vowels)
+    1. PRESERVE as-is (not split, not modified)
+       - "NASA" → "NASA" (people say it as a word)
+       - Add more as needed: brand names, org acronyms, etc.
+    2. Special cases → split letter-by-letter (even with vowels)
        - "API" → "A P I"
        - "GPU" → "G P U"
        - "CPU" → "C P U"
-    2. If rest has consonant-vowel-consonant pattern (c-v-c) → pronounceable
+    3. If rest has consonant-vowel-consonant pattern (c-v-c) → pronounceable
        - "JSON" → "J son" (rest="son" matches c-v-c)
        - "JPEG" → "J peg" (rest="peg" matches c-v-c)
        - "GIF" → "gif" (rest="if" matches c-v-c)
-    3. Otherwise → split ALL letters letter-by-letter
-       - "NASA" → "N A S A" (rest="asa" doesn't match c-v-c)
+    4. Otherwise → split ALL letters letter-by-letter
        - "ML" → "M L"
+       - "AI" → "A I"
     """
     rest = acronym[1:].lower()
     vowels = set("aeiou")  # Lowercase for comparison
 
+    # Preserve as-is (not split, not modified)
+    PRESERVE_THESE = {"NASA"}  # Add more as needed
+    if acronym in PRESERVE_THESE:
+        return acronym
+
     # Special cases: always split (add more as we find them)
     SPLIT_THESE = {"API", "GPU", "CPU"}
-
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
 
