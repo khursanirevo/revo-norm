@@ -251,18 +251,12 @@ def expand_acronym(acronym: str) -> str:
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
 
-    # If 3+ letters AND starts with consonant AND ends with consonant (c-v-c pattern)
+    # If 3+ letters AND has at least one vowel in the middle (c-v-c pattern)
     # → treat as pronounceable word (first letter + rest lowercase)
-    if len(rest) >= 3 and rest[0] not in vowels and rest[-1] not in vowels:
+    has_vowel_in_middle = any(ch in vowels for ch in rest[1:-1])
+    if len(rest) >= 3 and rest[0] not in vowels and rest[-1] not in vowels and has_vowel_in_middle:
         return f"{acronym[0]} {rest}"
     # Otherwise spell all letters letter-by-letter
-    else:
-        return " ".join(list(acronym))
-
-    # If rest has vowels, split only first letter (lowercase the rest)
-    if any(ch in vowels for ch in rest):
-        return f"{acronym[0]} {rest.lower()}"
-    # Otherwise spell all letters
     else:
         return " ".join(list(acronym))
 

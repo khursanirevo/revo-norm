@@ -141,7 +141,7 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
 
     Smarter logic:
     - Only add commas after many words (min_words=8, not 2-5)
-    - Don't add comma if there's already punctuation within 2-3 words
+    - Don't add comma if there's already punctuation within 8 words
     - Don't add comma if near end of sentence
 
     Args:
@@ -178,9 +178,9 @@ def add_random_commas(text: str, min_words: int = 8, max_words: int = 15) -> str
             word_count += 1
 
             if word_count >= min_words:
-                # Check if there's punctuation coming up soon (within 2-3 words)
+                # Check if there's punctuation coming up soon (within 8 words)
                 upcoming_punctuation = False
-                for j in range(i + 1, min(i + 4, len(words))):
+                for j in range(i + 1, min(i + 9, len(words))):
                     if re.search(r"[.!?,:;]", words[j]):
                         upcoming_punctuation = True
                         break
