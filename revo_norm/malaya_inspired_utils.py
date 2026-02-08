@@ -309,6 +309,9 @@ _DURATION_PATTERN = re.compile(
     r"\b(\d+)\s*(jam|minit|saat|hours?|minutes?|seconds?)\b", re.IGNORECASE
 )
 
+# Area pattern (e.g., "1000 sq ft", "500 sqft")
+_AREA_PATTERN = re.compile(r"\b(-?\d+(?:[\.,]\d+)?)\s*(sq\s+ft|sqft)\b", re.IGNORECASE)
+
 
 # Unit mappings for distance/volume/weight
 _DISTANCE_UNITS_EN: dict[str, str] = {
@@ -377,6 +380,17 @@ _DURATION_UNITS_EN: dict[str, str] = {
     "minutes": "minutes",
     "second": "second",
     "seconds": "seconds",
+}
+
+# Area unit mappings (e.g., "sq ft" → "square feet")
+_AREA_UNITS_EN: dict[str, str] = {
+    "sq ft": "square feet",
+    "sqft": "square feet",
+}
+
+_AREA_UNITS_MS: dict[str, str] = {
+    "sq ft": "kaki persegi",
+    "sqft": "kaki persegi",
 }
 
 _DURATION_UNITS_MS: dict[str, str] = {
@@ -464,9 +478,27 @@ def normalize_duration(match: re.Match, language: str = "en") -> str:
         return f"{value_spoken} {unit_spoken}"
 
 
+def normalize_area(match: re.Match, language: str = "en") -> str:
+    """Normalize area notation to spoken form (e.g., '1000 sq ft' → 'one thousand square feet')."""
+    from revo_norm.normalizer_en import text_normalize as normalize_en
+    from revo_norm.normalizer_ms import normalize_malay as normalize_ms
+
+    value = match.group(1).replace(",", ".")
+    unit = match.group(2).lower()
+
+    if language == "en":
+        value_spoken = normalize_en(value)
+        unit_spoken = _AREA_UNITS_EN.get(unit, unit)
+        return f"{value_spoken} {unit_spoken}"
+    else:
+        value_spoken = normalize_ms(value)
+        unit_spoken = _AREA_UNITS_MS.get(unit, unit)
+        return f"{value_spoken} {unit_spoken}"
+
+
 def normalize_measurements(text: str, language: str = "en") -> str:
     """
-    Normalize all distance, volume, weight, and duration notations in text.
+    Normalize all distance, volume, weight, duration, and area notations in text.
 
     Args:
         text: Input text containing measurements
@@ -476,13 +508,14 @@ def normalize_measurements(text: str, language: str = "en") -> str:
         Text with measurements normalized
 
     Example:
-        >>> normalize_measurements("5km 2kg", language="en")
-        'five kilometers two kilograms'
+        >>> normalize_measurements("5km 2kg 1000 sq ft", language="en")
+        'five kilometers two kilograms one thousand square feet'
     """
     text = _DISTANCE_PATTERN.sub(lambda m: normalize_distance(m, language), text)
     text = _VOLUME_PATTERN.sub(lambda m: normalize_volume(m, language), text)
     text = _WEIGHT_PATTERN.sub(lambda m: normalize_weight(m, language), text)
     text = _DURATION_PATTERN.sub(lambda m: normalize_duration(m, language), text)
+    text = _AREA_PATTERN.sub(lambda m: normalize_area(m, language), text)
     return text
 
 
