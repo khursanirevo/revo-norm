@@ -15,7 +15,7 @@ rule in expand_acronym() - they don't need explicit mappings here.
 # Tech terms are pronounced the same way in both languages for Malaysian context
 PRONUNCIATION_MAPPINGS: dict[str, str] = {
     # Text corrections / OCR error fixes
-    "bias": "baiyes",
+    "bias": "bai yers",
     # Malay honorifics - pronounced fully for TTS
     "Hj": "Haji",
     "Hjh": "Hajah",
