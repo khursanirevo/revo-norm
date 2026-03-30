@@ -36,75 +36,44 @@ def expand_currency_k_suffix(m):
 
 def expand_currency_m_suffix(m):
     """
-    Expand currency with 'M' suffix (millions) to full number.
-    This is entity-aware: only processes detected currency entities.
-
-    This is a universal function that works across all languages.
+    Expand currency with 'M' suffix (millions) to word form.
+    Outputs "{symbol}{amount} million" so the downstream currency regex
+    can handle it without the raw large number confusing other normalizers.
 
     Examples:
-        RM1M → RM1000000
-        RM10M → RM10000000
-        RM1.5M → RM1500000
-        $50M → $50000000
-        EUR100M → EUR100000000
+        RM19m  → RM19 million
+        $5M    → $5 million
+        RM1.5M → RM1.5 million
     """
-    symbol = m.group(1)  # RM, $, etc.
-    amount = m.group(2)  # e.g., "1", "10", "1.5"
-
-    # Convert to float and multiply by 1,000,000
-    amount_float = float(amount) * 1000000
-
-    # Convert to integer if it's a whole number
-    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
-
-    return f"{symbol}{amount_final}"
+    symbol = m.group(1)
+    amount = m.group(2)
+    return f"{symbol}{amount} million"
 
 
 def expand_currency_b_suffix(m):
     """
-    Expand currency with 'B' suffix (billions) to full number.
-    This is entity-aware: only processes detected currency entities.
-
-    This is a universal function that works across all languages.
+    Expand currency with 'B' suffix (billions) to word form.
 
     Examples:
-        RM1B → RM1000000000
-        $2.5B → $2500000000
-        EUR10B → EUR10000000000
+        RM1B   → RM1 billion
+        $2.5B  → $2.5 billion
     """
-    symbol = m.group(1)  # RM, $, etc.
-    amount = m.group(2)  # e.g., "1", "2.5"
-
-    # Convert to float and multiply by 1,000,000,000
-    amount_float = float(amount) * 1000000000
-
-    # Convert to integer if it's a whole number
-    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
-
-    return f"{symbol}{amount_final}"
+    symbol = m.group(1)
+    amount = m.group(2)
+    return f"{symbol}{amount} billion"
 
 
 def expand_currency_t_suffix(m):
     """
-    Expand currency with 'T' suffix (trillions) to full number.
-    This is entity-aware: only processes detected currency entities.
-
-    This is a universal function that works across all languages.
+    Expand currency with 'T' suffix (trillions) to word form.
 
     Examples:
-        RM1T → RM1000000000000
-        $2T → $2000000000000
+        RM1T → RM1 trillion
+        $2T  → $2 trillion
     """
-    symbol = m.group(1)  # RM, $, etc.
-    amount = m.group(2)  # e.g., "1", "2"
-
-    # Convert to float and multiply by 1,000,000,000,000
-    amount_float = float(amount) * 1000000000000
-
-    # Convert to integer if it's a whole number
-    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
-
-    return f"{symbol}{amount_final}"
+    symbol = m.group(1)
+    amount = m.group(2)
+    return f"{symbol}{amount} trillion"
 
 
 # Regex pattern for currency with K suffix (thousands)

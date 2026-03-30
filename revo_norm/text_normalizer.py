@@ -242,7 +242,8 @@ def expand_acronym(acronym: str) -> str:
     vowels = set("aeiou")  # Lowercase for comparison
 
     # Preserve as-is (not split, not modified)
-    PRESERVE_THESE = {"NASA"}  # noqa: N806 - Add more as needed
+    # Tech terms that are pronounced as a word/unit, not spelled letter-by-letter
+    PRESERVE_THESE = {"NASA", "AI", "ML", "DL", "NLP", "LLM", "RL", "IoT"}  # noqa: N806
     if acronym in PRESERVE_THESE:
         return acronym
 

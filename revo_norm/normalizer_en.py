@@ -156,7 +156,7 @@ months_en = {
 _currency_k_re = CURRENCY_K_SUFFIX_PATTERN
 
 _currency_re = re.compile(
-    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)\s?([\d,]+(?:[\.,]\d{1,2})?)\b",
+    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)\s?([\d,]+(?:[\.,]\d{1,2})?)(?:\s+(million|billion|trillion|thousand))?\b",
     re.IGNORECASE,
 )
 _percentage_re = re.compile(r"\b(\d+(?:\.\d+)?)%")
@@ -265,9 +265,11 @@ def normalize_date(m):
 
 
 def normalize_currency(m):
-    symbol, amount = m.groups()
-    amount = amount.replace(",", "")
-    if symbol.upper() == "RM" or symbol.upper() == "MYR":
+    symbol = m.group(1)
+    amount = m.group(2).replace(",", "")
+    magnitude = (m.group(3) or "").lower() or None
+
+    if symbol.upper() in ("RM", "MYR"):
         unit_main, unit_sub = "ringgit", "cent"
     elif symbol == "$":
         unit_main, unit_sub = "dollar", "cent"
@@ -275,10 +277,19 @@ def normalize_currency(m):
         unit_main, unit_sub = "pound", "pence"
     elif symbol == "€":
         unit_main, unit_sub = "euro", "cent"
-    elif symbol == "USD":
+    elif symbol.upper() == "USD":
         unit_main, unit_sub = "dollar", "cent"
     else:
         unit_main, unit_sub = "unit", "subunit"
+
+    # Currency with magnitude suffix: "RM2.5 million" → "two point five million ringgit"
+    if magnitude:
+        if "." in amount:
+            whole, frac = amount.split(".")
+            frac_words = " ".join(_inflect.number_to_words(int(d)) for d in frac)
+            return f"{_inflect.number_to_words(int(whole))} point {frac_words} {magnitude} {unit_main}"
+        else:
+            return f"{_inflect.number_to_words(int(amount))} {magnitude} {unit_main}"
 
     if "." in amount:
         major, minor = amount.split(".")
@@ -319,11 +330,30 @@ def normalize_ordinal(m):
     return _inflect.number_to_words(_inflect.ordinal(number))
 
 
-def normalize_number(m):
-    if len(m.group(0)) > 4:
-        return " ".join(_inflect.number_to_words(int(digit)) for digit in m.group(0))
+def _render_year(num: int) -> str:
+    """Render a 4-digit number in year-reading style (e.g. 1990 → 'nineteen ninety')."""
+    first = num // 100
+    second = num % 100
+    first_word = _inflect.number_to_words(first)
+    if second == 0:
+        # 2000 → "two thousand", 1900 → "nineteen hundred"
+        return "two thousand" if first == 20 else f"{first_word} hundred"
+    elif second < 10:
+        # 2001 → "twenty oh one"
+        return f"{first_word} oh {_inflect.number_to_words(second)}"
     else:
-        return _inflect.number_to_words(int(m.group(0)))
+        return f"{first_word} {_inflect.number_to_words(second)}"
+
+
+def normalize_number(m):
+    digits = m.group(0)
+    num = int(digits)
+    if len(digits) > 4:
+        return " ".join(_inflect.number_to_words(int(d)) for d in digits)
+    elif len(digits) == 4 and 1000 <= num <= 2099:
+        return _render_year(num)
+    else:
+        return _inflect.number_to_words(num)
 
 
 def normalize_number_with_commas(m):

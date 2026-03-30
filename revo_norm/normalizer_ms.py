@@ -47,7 +47,8 @@ _date_re = re.compile(r"\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b")
 _currency_k_re = CURRENCY_K_SUFFIX_PATTERN
 
 _currency_re = re.compile(
-    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)([\d,]+(?:[\.,]\d{1,2})?)\b", re.IGNORECASE
+    r"(?<!\w)(RM|\$|£|€|USD|EUR|GBP|MYR)(?:\s?)([\d,]+(?:[\.,]\d{1,2})?)(?:\s+(juta|bilion|trilion|ribu|million|billion|trillion|thousand))?\b",
+    re.IGNORECASE,
 )
 _decimal_re = re.compile(r"\b(\d+)\.(\d+)\b")
 _dashed_digit_re = re.compile(r"(?<![A-Za-z])([+\d]+(?:-[\d]+)+)(?![A-Za-z])")
@@ -129,8 +130,10 @@ def normalize_date(m):
 
 
 def normalize_currency(m):
-    symbol, amount = m.groups()
-    amount = amount.replace(",", "")
+    symbol = m.group(1)
+    amount = m.group(2).replace(",", "")
+    magnitude = (m.group(3) or "").lower() or None
+
     if symbol.upper() == "RM":
         unit_main, unit_sub = "ringgit", "sen"
     elif symbol == "$":
@@ -139,12 +142,23 @@ def normalize_currency(m):
         unit_main, unit_sub = "pound", "pence"
     elif symbol == "€":
         unit_main, unit_sub = "euro", "sen"
-    elif symbol == "USD":
-        unit_main, unit_sub = "dollar", "sen"
-    elif symbol == "MYR":
-        unit_main, unit_sub = "ringgit", "sen"
+    elif symbol.upper() in ("USD", "MYR"):
+        unit_main, unit_sub = "ringgit" if symbol.upper() == "MYR" else "dollar", "sen"
     else:
         unit_main, unit_sub = "unit", "subunit"
+
+    # Normalise English magnitude words to Malay equivalents
+    _mag_ms = {"million": "juta", "billion": "bilion", "trillion": "trilion", "thousand": "ribu"}
+    if magnitude in _mag_ms:
+        magnitude = _mag_ms[magnitude]
+
+    if magnitude:
+        if "." in amount:
+            whole, frac = amount.split(".")
+            frac_words = " ".join(num2word(int(d)) for d in frac)
+            return f"{num2word(int(whole))} perpuluhan {frac_words} {magnitude} {unit_main}"
+        else:
+            return f"{num2word(int(amount))} {magnitude} {unit_main}"
 
     if "." in amount:
         ringgit, sen = amount.split(".")
