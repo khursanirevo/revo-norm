@@ -67,8 +67,8 @@ def apply_pronunciation_mappings(text: str, language: str = "en") -> str:
     other transformations. Mappings are applied as whole-word matches only.
 
     NOTE: Only contains actual pronunciation changes (GUI → gooey, etc.).
-    Tech acronyms (API, ML, GPU, etc.) are handled by the generalized rule
-    in expand_acronym() and will be split letter-by-letter.
+    All-caps tech acronyms (AI, ML, LLM, GPU, API, etc.) are split
+    letter-by-letter by expand_acronym().
 
     Args:
         text: Input text
@@ -81,7 +81,7 @@ def apply_pronunciation_mappings(text: str, language: str = "en") -> str:
         >>> apply_pronunciation_mappings("Build GUI interface", "en")
         'Build gooey interface'
         >>> apply_pronunciation_mappings("Train ML model", "en")
-        'Train ML model'  # No change, handled by generalized rule later
+        'Train ML model'  # No change here; expand_acronym() will split → "M L"
     """
     import re
 

@@ -230,6 +230,9 @@ def expand_acronym(acronym: str) -> str:
        - "API" → "A P I"
        - "GPU" → "G P U"
        - "CPU" → "C P U"
+       - "AI"  → "A I"
+       - "ML"  → "M L"
+       - "LLM" → "L L M"
     3. If rest has consonant-vowel-consonant pattern (c-v-c) → pronounceable
        - "JSON" → "J son" (rest="son" matches c-v-c)
        - "JPEG" → "J peg" (rest="peg" matches c-v-c)
@@ -242,13 +245,13 @@ def expand_acronym(acronym: str) -> str:
     vowels = set("aeiou")  # Lowercase for comparison
 
     # Preserve as-is (not split, not modified)
-    # Tech terms that are pronounced as a word/unit, not spelled letter-by-letter
-    PRESERVE_THESE = {"NASA", "AI", "ML", "DL", "NLP", "LLM", "RL", "IoT"}  # noqa: N806
+    # Only true word-pronunciations (NASA = "nassa", not individual letters)
+    PRESERVE_THESE = {"NASA"}  # noqa: N806
     if acronym in PRESERVE_THESE:
         return acronym
 
     # Special cases: always split (add more as we find them)
-    SPLIT_THESE = {"API", "GPU", "CPU"}  # noqa: N806
+    SPLIT_THESE = {"API", "GPU", "CPU", "AI", "ML", "DL", "NLP", "LLM", "RL"}  # noqa: N806
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
 
