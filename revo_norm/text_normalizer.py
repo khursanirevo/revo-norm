@@ -194,6 +194,10 @@ def replace_letter_period_sequences(text: str, process_acronyms: bool = True) ->
 
     text = re.sub(r"\b(?:[A-Za-z]\.){2,}\.?", replacer_periods, text)
 
+    # Replace hyphens between words with spaces so compound words don't merge
+    # e.g. "GPU-accelerated" → "GPU accelerated" before acronym expansion
+    text = re.sub(r"(?<=[A-Za-z])-(?=[A-Za-z])", " ", text)
+
     # Then, handle remaining all-caps sequences (IBM, API, CPU, etc.) - ONLY if requested
     if process_acronyms:
         # But only if they're 2-4 letters (avoid matching regular words)
