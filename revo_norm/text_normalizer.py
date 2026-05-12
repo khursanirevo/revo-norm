@@ -508,7 +508,29 @@ def normalize_text(
     text = CURRENCY_M_SUFFIX_PATTERN.sub(lambda m: expand_currency_m_suffix(m), text)
     text = CURRENCY_K_SUFFIX_PATTERN.sub(lambda m: expand_currency_k_suffix(m), text)
 
-    # Convert emails and URLs (after K expansion to avoid breaking currency patterns)
+    # Pre-process currency, dates, times, percentages BEFORE URL conversion
+    # to prevent the URL regex from mangling patterns like RM5.50 or 12/05/2026
+    if effective_language == "ms":
+        from revo_norm.normalizer_ms import (
+            _currency_re,
+            _date_re,
+            _percentage_re,
+            _time_no_meridian_re,
+            _time_re,
+            normalize_currency,
+            normalize_date,
+            normalize_percentage,
+            normalize_time,
+            normalize_time_no_meridian,
+        )
+
+        text = _date_re.sub(normalize_date, text)
+        text = _currency_re.sub(normalize_currency, text)
+        text = _time_re.sub(normalize_time, text)
+        text = _time_no_meridian_re.sub(normalize_time_no_meridian, text)
+        text = _percentage_re.sub(normalize_percentage, text)
+
+    # Convert emails and URLs (after currency/date pre-processing)
     # NOTE: Process emails BEFORE URLs to prevent URL pattern from matching
     # the domain part of email addresses (e.g., example.com in user@example.com)
     text = convert_emails_to_spoken(text, effective_language)
