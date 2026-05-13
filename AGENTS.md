@@ -19,8 +19,8 @@ Tests are maintained in a separate repository.
 
 - Run all tests: `uv run pytest ../tests/revo-norm/ -v --tb=short`
 - Run with coverage: `uv run pytest ../tests/revo-norm/ --cov --cov-report=term-missing`
-- Run a single test class: `uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature -v`
-- Run a single test: `uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v`
+- Run a single test class: `uv run pytest ../tests/revo-norm/<test_file>.py::TestClass -v`
+- Run a single test: `uv run pytest ../tests/revo-norm/<test_file>.py::TestClass::test_method -v`
 - Always run `uv run ruff check revo_norm/` and `uv run pytest ../tests/revo-norm/ -q` before committing.
 
 ## Code Architecture
@@ -43,6 +43,21 @@ Tests are maintained in a separate repository.
 ### Single Pipeline Architecture
 
 The library uses a **single unified pipeline** with entity extraction always enabled. Entity extraction protects patterns (dates, currency, URLs, emails, etc.) from being mangled by downstream transformations.
+
+### Feature Organization
+
+**Entity-Specific Features** (have dedicated regex patterns, safe to disable):
+- URLs, Emails, IC Numbers, Dates, Times, Temperature, Fractions, X-Kali, Measurements, Hari Bulan, Hijri Years
+
+**Global Features** (operate on entire text):
+- Language-specific normalization, number normalization, elongated words, abbreviations, acronyms, spacing
+
+### Critical Pipeline Dependencies
+
+These ordering constraints MUST be preserved:
+1. **Currency K-suffix before URLs**: `RM30K` → `RM30000` must happen before URL processing
+2. **Pronunciation mappings before acronym expansion**: Prevents `JSON` → `J S O N`
+3. **Dates before Fractions**: Entity extraction prevents date/fraction pattern conflict
 
 ### Pipeline Flow Diagram
 
