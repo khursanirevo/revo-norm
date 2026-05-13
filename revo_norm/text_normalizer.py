@@ -208,7 +208,7 @@ def replace_letter_period_sequences(text: str, process_acronyms: bool = True) ->
 
         # Match 2-6 consecutive uppercase letters that form a word
         # This catches things like IBM, API, CPU, HTTPS, IEEE that weren't caught by letter-period pattern
-        text = re.sub(r"\b[A-Z]{2,6}\b", replacer_caps, text)
+        text = re.sub(r"\b[A-Z]{2,10}\b", replacer_caps, text)
 
     return text
 
@@ -258,6 +258,26 @@ def expand_acronym(acronym: str) -> str:
     SPLIT_THESE = {"API", "GPU", "CPU", "AI", "ML", "DL", "NLP", "LLM", "RL"}  # noqa: N806
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
+    
+
+    # Malaysian university/organization acronyms that MUST be spelled letter-by-letter
+    # Even if they look pronounceable, these are always spelled in Malaysian context
+    ALWAYS_SPELL = {"UITM", "UKM", "USM", "UTM", "UPNM", "IIUM", "UM", "UKM", "UPM"}  # noqa: N806
+    if acronym in ALWAYS_SPELL:
+        return " ".join(list(acronym))
+
+    # Pronounceable word check (4+ letters with 30-50% vowel density AND has consonants)
+    # This handles Malaysian org acronyms like PERKESO, MARA, FELDA
+    # which are pronounced as words, not letter-by-letter
+    vowel_count = sum(1 for ch in acronym if ch.lower() in vowels)
+    vowel_ratio = vowel_count / len(acronym) if len(acronym) > 0 else 0
+    has_consonants = any(ch.lower() not in vowels for ch in acronym)
+
+    if len(acronym) >= 4 and 0.3 <= vowel_ratio <= 0.6 and has_consonants:
+        return acronym.lower()
+
+    # Existing c-v-c pattern (for JSON, JPEG, etc.)
+    rest = acronym[1:].lower()
 
     # If 3+ letters AND has at least one vowel in the middle (c-v-c pattern)
     # → treat as pronounceable word (first letter + rest lowercase)
