@@ -1,7 +1,18 @@
+"""
+Revo Norm — unified single-pipeline text normalizer for TTS.
+
+Public API
+----------
+    normalize_text(text, language, profile, disable)
+
+Everything else is an internal helper.
+"""
+
 import re
+import warnings
 from typing import TYPE_CHECKING, Optional
 
-from revo_norm.abbreviation_utils import expand_abbreviations
+from revo_norm.config import Config
 from revo_norm.currency_utils import (
     CURRENCY_B_SUFFIX_PATTERN,
     CURRENCY_K_SUFFIX_PATTERN,
@@ -12,334 +23,171 @@ from revo_norm.currency_utils import (
     expand_currency_m_suffix,
     expand_currency_t_suffix,
 )
-from revo_norm.malaya_inspired_utils import (
+from revo_norm.malay_features import (
     normalize_elongated_text,
-    normalize_fractions,
-    normalize_hari_bulan_text,
-    normalize_hijri_years,
-    normalize_ic_numbers,
     normalize_measurements,
-    normalize_temperatures,
     normalize_x_kali_text,
 )
 from revo_norm.normalizer_en import text_normalize as text_normalizer_en
 from revo_norm.normalizer_ms import normalize_malay as text_normalizer_ms
-from revo_norm.pronunciation_mappings import (
-    apply_pronunciation_mappings,
-)
+from revo_norm.pronunciation_mappings import apply_pronunciation_mappings
+from revo_norm.tts_utils import parse_sound_word_field, smart_remove_sound_words
 
-# Type check import to avoid circular dependency
 if TYPE_CHECKING:
-    from revo_norm.config import NormalizationConfig
+    from revo_norm.entity_extractor import EntityExtractor
+
+# ===================================================================
+# Internal helpers (used by entity_extractor too)
+# ===================================================================
 
 
-def normalize_whitespace(text: str) -> str:
-    """Normalize multiple whitespace to single space and strip."""
+def _normalize_whitespace(text: str) -> str:
+    """Collapse multiple whitespace to single space and strip."""
     return re.sub(r"\s{2,}", " ", text.strip())
 
 
+# Public alias kept for backward compat
+normalize_whitespace = _normalize_whitespace
+
+
 def email_to_spoken(email: str, language: str = "en") -> str:
-    """
-    Convert an email address into a spoken-friendly form for TTS.
-
-    Args:
-        email: Email address to convert
-        language: Target language ('en' or 'ms'). Defaults to 'en'.
-
-    Returns:
-        Spoken form of the email address
-
-    Example:
-        >>> email_to_spoken("sugumaran_thiagarajan@yahoo.com", "en")
-        'sugumaran underscore thiagarajan at yahoo dot com'
-        >>> email_to_spoken("sugumaran_thiagarajan@yahoo.com", "ms")
-        'sugumaran underscore thiagarajan at yahoo dot com'
-    """
-    # Use "at" for @ symbol in both English and Malay
-    at_word = "at"
-    spoken = email.replace("@", f" {at_word} ")
-    # Replace all dots with " dot " (not just .com)
+    """Convert an email address to spoken-friendly form for TTS."""
+    spoken = email.replace("@", " at ")
     spoken = spoken.replace(".", " dot ")
     spoken = spoken.replace("_", " underscore ")
     spoken = spoken.replace("+", " plus ")
-    # Replace hyphen with " dash " in emails
     spoken = spoken.replace("-", " dash ")
-
     return re.sub(r"\s+", " ", spoken).strip()
 
 
-# Email regex pattern
 _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", re.IGNORECASE)
 
 
 def convert_emails_to_spoken(text: str, language: str = "en") -> str:
-    """
-    Find all email addresses in text and convert them to spoken form using regex.
-    This prevents messing up dots in other parts of the text.
+    """Replace all email addresses in *text* with spoken form."""
+    return _EMAIL_RE.sub(lambda m: email_to_spoken(m.group(0), language), text)
 
-    Args:
-        text: Input text containing email addresses
-        language: Target language ('en' or 'ms'). Defaults to 'en'.
 
-    Returns:
-        Text with email addresses converted to spoken form
-    """
-
-    def replace_email(match):
-        email = match.group(0)
-        return email_to_spoken(email, language)
-
-    return _EMAIL_RE.sub(replace_email, text)
+# Digit-to-word mapping for URL speaking
+_DIGIT_WORDS = {
+    "0": "zero",
+    "1": "one",
+    "2": "two",
+    "3": "three",
+    "4": "four",
+    "5": "five",
+    "6": "six",
+    "7": "seven",
+    "8": "eight",
+    "9": "nine",
+}
 
 
 def url_to_spoken(url: str) -> str:
-    """
-    Convert a URL/website into a spoken-friendly form for TTS.
-
-    Examples:
-        'www.google.com' -> 'w w w dot google dot com'
-        'http://192.168.1.1:8080/path' -> 'h t t p colon slash slash one nine two...'
-    """
+    """Convert a URL into spoken-friendly form for TTS."""
     spoken = url
-
-    # Replace protocol FIRST - generalize by splitting on ://
     if "://" in spoken:
-        protocol, rest = spoken.split("://", 1)
-        # Spell out protocol character by character
+        protocol, _ = spoken.split("://", 1)
         protocol_spoken = " ".join(list(protocol))
         spoken = spoken.replace(f"{protocol}://", f"{protocol_spoken} colon slash slash ")
-
-    # Replace www
     spoken = re.sub(r"www\.?", "w w w dot ", spoken)
 
-    # Handle port numbers separately (before general processing)
-    def replace_port(match):
-        port = match.group(1)
-        port_digits = " ".join(list(port))
-        return f" colon {port_digits}"
+    def _replace_port(m: re.Match) -> str:
+        return " colon " + " ".join(_DIGIT_WORDS.get(c, c) for c in m.group(1))
 
-    spoken = re.sub(r":(\d+)", replace_port, spoken)
-
-    # Replace remaining dots with " dot "
+    spoken = re.sub(r":(\d+)", _replace_port, spoken)
     spoken = spoken.replace(".", " dot ")
-
-    # Replace slashes with " slash "
     spoken = spoken.replace("/", " slash ")
-
-    # Replace remaining numbers with digit-by-digit speaking (for IP addresses)
-    def speak_number_digits(match):
-        num = match.group(0)
-        return " ".join(list(num))
-
-    spoken = re.sub(r"\d+", speak_number_digits, spoken)
-
-    # Replace hyphens with " dash "
+    spoken = re.sub(r"\d+", lambda m: " ".join(_DIGIT_WORDS.get(c, c) for c in m.group(0)), spoken)
     spoken = spoken.replace("-", " dash ")
-
-    # Clean up extra spaces
-    spoken = re.sub(r"\s+", " ", spoken).strip()
-
-    return spoken
+    return re.sub(r"\s+", " ", spoken).strip()
 
 
-# URL regex pattern - matches any protocol://, www., IPs, domains, and ports
-# Entity-specific: Requires protocol/www OR stricter domain pattern to avoid
-# matching currency (e.g., RM1.5K)
 _URL_RE = re.compile(
-    r"(?:[a-zA-Z][a-zA-Z0-9+.-]*://|www\.)[^\s]+|"  # Any protocol:// URLs (must start with protocol/www)
-    r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:/[^\s]*)?|"  # IP addresses
-    r"\b[A-Za-z0-9-]+\.[A-Za-z]{2,}(?:/[^\s]*)?",  # Simple domains (e.g., example.com)
+    r"(?:[a-zA-Z][a-zA-Z0-9+.-]*://|www\.)[^\s]+|"
+    r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:/[^\s]*)?|"
+    r"\b[A-Za-z0-9-]+\.[A-Za-z]{2,}(?:/[^\s]*)?",
     re.IGNORECASE,
 )
 
 
 def convert_urls_to_spoken(text: str) -> str:
-    """
-    Find all URLs/websites in text and convert them to spoken form using regex.
-    This prevents messing up dots and slashes in other parts of the text.
-    """
-
-    def replace_url(match):
-        url = match.group(0)
-        return url_to_spoken(url)
-
-    return _URL_RE.sub(replace_url, text)
+    """Replace all URLs in *text* with spoken form."""
+    return _URL_RE.sub(lambda m: url_to_spoken(m.group(0)), text)
 
 
 def replace_letter_period_sequences(text: str, process_acronyms: bool = True) -> str:
-    """
-    Replace letter period sequences like 'I.B.M.' with 'I B M'.
+    """Replace letter-period sequences (I.B.M. -> I B M) and optionally expand acronyms."""
 
-    This handles all variations of capitalized abbreviations:
-    - I.B.M. → I B M
-    - IBM → I B M
-    - I.B.M → I B M
-    - I. B. M. → I B M (already spaces)
+    def _replacer_periods(m: re.Match) -> str:
+        return " ".join(m.group(0).rstrip(".").split("."))
 
-    Args:
-        text: Input text
-        process_acronyms: If True, also handle all-caps acronyms (IBM, API, CPU).
-                        If False, only handle letter-period sequences.
-
-    Note: This is now the ONLY place that handles acronym/initialism expansion.
-    Abbreviations that were letter-by-letter (API, CPU, etc.) have been removed
-    from the abbreviation list to avoid double-processing.
-    """
-
-    # First, handle letter-period sequences (I.B.M., A.B.C., etc.)
-    def replacer_periods(match):
-        cleaned = match.group(0).rstrip(".")
-        letters = cleaned.split(".")
-        return " ".join(letters)
-
-    text = re.sub(r"\b(?:[A-Za-z]\.){2,}\.?", replacer_periods, text)
-
-    # Replace hyphens between words with spaces so compound words don't merge
-    # e.g. "GPU-accelerated" → "GPU accelerated" before acronym expansion
+    text = re.sub(r"\b(?:[A-Za-z]\.){2,}\.?", _replacer_periods, text)
     text = re.sub(r"(?<=[A-Za-z])-(?=[A-Za-z])", " ", text)
 
-    # Then, handle remaining all-caps sequences (IBM, API, CPU, etc.) - ONLY if requested
     if process_acronyms:
-        # But only if they're 2-4 letters (avoid matching regular words)
-        def replacer_caps(match):
-            acronym = match.group(0)
-            # Use the existing expand_acronym logic
-            return expand_acronym(acronym)
-
-        # Match 2-6 consecutive uppercase letters that form a word
-        # This catches things like IBM, API, CPU, HTTPS, IEEE that weren't caught by letter-period pattern
-        text = re.sub(r"\b[A-Z]{2,6}\b", replacer_caps, text)
+        text = re.sub(r"\b[A-Z]{2,6}\b", lambda m: expand_acronym(m.group(0)), text)
 
     return text
 
 
-# Keep the original expand_capitalized_initialisms as an alias for compatibility
+# Backward-compat alias
 expand_capitalized_initialisms = replace_letter_period_sequences
 
 
 def remove_inline_reference_numbers(text: str) -> str:
-    """Remove reference numbers after punctuation (e.g., 'word1.' -> 'word.')."""
-    pattern = r'([.!?,\\\'"\)\]])(\d+)(?=\s|$)'
-    return re.sub(pattern, r"\1", text)
+    """Remove reference numbers after punctuation."""
+    return re.sub(r'([.!?,\\\'"\)\]])(\d+)(?=\s|$)', r"\1", text)
 
 
 def expand_acronym(acronym: str) -> str:
     """Expand an acronym into spoken form.
 
-    Generalized rule:
-    1. PRESERVE as-is (not split, not modified)
-       - "NASA" → "NASA" (people say it as a word)
-       - Add more as needed: brand names, org acronyms, etc.
-    2. Special cases → split letter-by-letter (even with vowels)
-       - "API" → "A P I"
-       - "GPU" → "G P U"
-       - "CPU" → "C P U"
-       - "AI"  → "A I"
-       - "ML"  → "M L"
-       - "LLM" → "L L M"
-    3. If rest has consonant-vowel-consonant pattern (c-v-c) → pronounceable
-       - "JSON" → "J son" (rest="son" matches c-v-c)
-       - "JPEG" → "J peg" (rest="peg" matches c-v-c)
-       - "GIF" → "gif" (rest="if" matches c-v-c)
-    4. Otherwise → split ALL letters letter-by-letter
-       - "ML" → "M L"
-       - "AI" → "A I"
+    Rules:
+    1. PRESERVE as-is: NASA
+    2. SPLIT letter-by-letter: API, GPU, CPU, AI, ML, LLM, etc.
+    3. 3+ letters with consonant-vowel-consonant rest -> pronounceable: JSON -> J son
+    4. Otherwise split all letters.
     """
     rest = acronym[1:].lower()
-    vowels = set("aeiou")  # Lowercase for comparison
+    vowels = set("aeiou")
 
-    # Preserve as-is (not split, not modified)
-    # Only true word-pronunciations (NASA = "nassa", not individual letters)
     PRESERVE_THESE = {"NASA"}  # noqa: N806
     if acronym in PRESERVE_THESE:
         return acronym
 
-    # Special cases: always split (add more as we find them)
     SPLIT_THESE = {"API", "GPU", "CPU", "AI", "ML", "DL", "NLP", "LLM", "RL"}  # noqa: N806
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
 
-    # If 3+ letters AND has at least one vowel in the middle (c-v-c pattern)
-    # → treat as pronounceable word (first letter + rest lowercase)
     has_vowel_in_middle = any(ch in vowels for ch in rest[1:-1])
     if len(rest) >= 3 and rest[0] not in vowels and rest[-1] not in vowels and has_vowel_in_middle:
         return f"{acronym[0]} {rest}"
-    # Otherwise spell all letters letter-by-letter
-    else:
-        return " ".join(list(acronym))
+    return " ".join(list(acronym))
+
+
+def expand_abbreviations(text: str, language: str = "en") -> str:
+    """No-op placeholder. Abbreviation expansion is disabled."""
+    return text
 
 
 def split_into_sentences(text: str) -> list[str]:
     """Split text into sentences using basic regex."""
-    sentence_endings = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
-    return [s.strip() for s in sentence_endings.split(text) if s.strip()]
-
-
-def parse_sound_word_field(user_input: str) -> list[tuple[str, str]]:
-    """Parse sound word field input into list of (pattern, replacement) tuples."""
-    lines = [line.strip() for line in user_input.split("\n") if line.strip()]
-    result = []
-    for line in lines:
-        if "=>" in line:
-            pattern, replacement = line.split("=>", 1)
-            result.append((pattern.strip(), replacement.strip()))
-        else:
-            result.append((line, ""))
-    return result
-
-
-def smart_remove_sound_words(text: str, sound_words: list[tuple[str, str]]) -> str:
-    """Remove or replace sound words like [laughter], [applause] from text."""
-    for pattern, replacement in sound_words:
-        if replacement:
-            text = re.sub(
-                rf"(?i)({re.escape(pattern)})([" r"'\u2019`s?])",
-                lambda m, repl=replacement: repl + "'s" if m.group(2) else repl,
-                text,
-            )
-            if all(char in "-—-" for char in pattern.strip()):
-                text = re.sub(re.escape(pattern), replacement, text)
-            else:
-                text = re.sub(
-                    rf"\b{re.escape(pattern)}\b", replacement, text, flags=re.IGNORECASE
-                )
-        else:
-            text = re.sub(rf"{re.escape(pattern)}", "", text, flags=re.IGNORECASE)
-
-    # Use pre-compiled patterns
-    text = _CAMEL_CASE_PATTERN.sub(r"\1 \2", text)
-    text = _MULTIPLE_COMMAS_PATTERN.sub(",", text)
-    text = _COMMAS_WITH_SPACES_PATTERN.sub(",", text)
-    text = _MULTI_SPACE_PATTERN.sub(" ", text)
-    text = _SPACE_COMMA_SPACE_PATTERN.sub(", ", text)
-    text = _LEADING_COMMA_PATTERN.sub(r"\1", text)
-    text = _TRAILING_COMMA_PATTERN.sub(r"\1", text)
-    return text.strip()
-
-
-# Pre-compiled regex patterns for smart_remove_sound_words
-_CAMEL_CASE_PATTERN = re.compile(r"([a-z])([A-Z])")
-_MULTIPLE_COMMAS_PATTERN = re.compile(r"([,\s]+,)+")
-_COMMAS_WITH_SPACES_PATTERN = re.compile(r",\s*,+")
-_MULTI_SPACE_PATTERN = re.compile(r"\s{2,}")
-_SPACE_COMMA_SPACE_PATTERN = re.compile(r"(\s+,|,\s+)")
-_LEADING_COMMA_PATTERN = re.compile(r"(^|[\.!\?]\s*),+")
-_TRAILING_COMMA_PATTERN = re.compile(r",+\s*([\.!\?])")
+    return [s.strip() for s in re.compile(r"(?<=[.!?])\s+(?=[A-Z])").split(text) if s.strip()]
 
 
 def insert_comma_after_repeated_words(text: str, min_repeat: int = 3) -> str:
-    """Insert comma after repeated words (e.g., 'test test test test' -> 'test test test, test')."""
+    """Insert comma after repeated words."""
     pattern = re.compile(r"\b(?P<word>\w+)\b(?: \1){" + str(min_repeat) + r",}", re.IGNORECASE)
 
-    def replacer(match):
-        phrase = match.group(0)
-        words = phrase.split()
+    def _replacer(m: re.Match) -> str:
+        words = m.group(0).split()
         return " ".join(words[:-1]) + ", " + words[-1]
 
-    return pattern.sub(replacer, text)
+    return pattern.sub(_replacer, text)
 
 
-# Pre-compiled regex patterns for pronunciation overrides (performance optimization)
+# Pre-compiled pronunciation override patterns
 _PRONUNCIATION_OVERRIDE_PATTERNS = [
     (re.compile(r"\btwenty-three\b", re.IGNORECASE), "twenty tree"),
     (re.compile(r"\bthree\b", re.IGNORECASE), "three"),
@@ -353,37 +201,118 @@ _PRONUNCIATION_OVERRIDE_PATTERNS = [
     (re.compile(r"\bNo\.\b", re.IGNORECASE), "number"),
 ]
 
-# Pre-compiled unit patterns for pronunciation overrides
 _PRONUNCIATION_UNIT_MAP = {
     "mg": (re.compile(r"(\d+)\s*mg\b", re.IGNORECASE), "milligram"),
     "kg": (re.compile(r"(\d+)\s*kg\b", re.IGNORECASE), "kilogram"),
     "GB": (re.compile(r"(\d+)\s*GB\b", re.IGNORECASE), "gigabyte"),
-    # Note: "hb" (hari bulan) is handled by normalize_hari_bulan_text
 }
 
 
 def apply_pronunciation_overrides(text: str) -> str:
     """Apply pronunciation overrides for specific words and phrases."""
-    # Apply precompiled patterns
     for pattern, replacement in _PRONUNCIATION_OVERRIDE_PATTERNS:
         text = pattern.sub(replacement, text)
-
-    # Apply unit patterns
     for _unit, (pattern, spoken) in _PRONUNCIATION_UNIT_MAP.items():
         text = pattern.sub(rf"\1 {spoken}", text)
-
     return text
 
 
-def special_replace(text: str, language: str = "en") -> str:
-    """
-    Special character and punctuation normalization.
-    This function replaces special characters with spoken equivalents.
-    """
-    # Language-specific replacements
-    percent_word = "percent" if language == "en" else "peratus"
+# Placeholder protection pattern (<<<TYPE_ID>>>)
+_PLACEHOLDER_RE = re.compile(r"<<<[A-Z_]+_\d+>>>")
 
-    replacements = {
+
+def _stash_placeholders(text: str) -> tuple[str, list[str]]:
+    """Replace entity placeholders with safe single-word tokens.
+
+    Uses purely alphabetic tokens (e.g. ``entstashaa``, ``entstashab``)
+    so language normalizers that match mixed-alphanumeric or number
+    patterns won't touch them.
+    """
+    stash: list[str] = []
+    _counter_letters = "abcdefghijklmnopqrstuvwxyz"
+
+    def _idx_to_letters(n: int) -> str:
+        """Convert integer to letter string: 0→aa, 1→ab, ..., 25→az, 26→ba, etc."""
+        result = []
+        n_shifted = n
+        while True:
+            result.append(_counter_letters[n_shifted % 26])
+            n_shifted = n_shifted // 26 - 1
+            if n_shifted < 0:
+                break
+        return "".join(reversed(result))
+
+    def _save(m: re.Match) -> str:
+        stash.append(m.group(0))
+        return f"entstash{_idx_to_letters(len(stash) - 1)}"
+
+    text = _PLACEHOLDER_RE.sub(_save, text)
+    return text, stash
+
+
+def _unstash_placeholders(text: str, stash: list[str]) -> str:
+    """Restore stashed placeholders back into text."""
+    _counter_letters = "abcdefghijklmnopqrstuvwxyz"
+
+    def _idx_to_letters(n: int) -> str:
+        result = []
+        n_shifted = n
+        while True:
+            result.append(_counter_letters[n_shifted % 26])
+            n_shifted = n_shifted // 26 - 1
+            if n_shifted < 0:
+                break
+        return "".join(reversed(result))
+
+    for i, ph in enumerate(stash):
+        text = text.replace(f"entstash{_idx_to_letters(i)}", ph)
+    return text
+
+
+def _restore_entities(
+    text: str,
+    extractor: "EntityExtractor",
+    speak_entities: set,
+    language: str,
+) -> str:
+    """Restore entity placeholders.
+
+    Entities in *speak_entities* are converted to spoken form.
+    All others are restored as original text (unprocessed).
+    """
+    result = text
+    for entity in reversed(extractor.entities):
+        placeholder = f"<<<{entity.type.value.upper()}_{entity.placeholder_id}>>>"
+        if placeholder not in result:
+            continue
+        if entity.type in speak_entities:
+            spoken = extractor._convert_entity_to_spoken(entity, language)
+            result = result.replace(placeholder, spoken, 1)
+        else:
+            # Restore original text unchanged
+            result = result.replace(placeholder, entity.text, 1)
+    return result
+
+
+def special_replace(text: str, language: str = "en") -> str:
+    """Special character and punctuation normalization.
+
+    Entity placeholders (<<<TYPE_ID>>>) are preserved intact.
+    """
+    import re as _re
+
+    # Protect entity placeholders from character replacement
+    placeholders: list[str] = []
+    placeholder_pattern = _re.compile(r"<<<[A-Z_]+_\d+>>>")
+
+    def _stash(m: _re.Match) -> str:
+        placeholders.append(m.group(0))
+        return f"__PH_{len(placeholders) - 1}__"
+
+    text = placeholder_pattern.sub(_stash, text)
+
+    percent_word = "percent" if language == "en" else "peratus"
+    replacements: dict[str, str] = {
         "&": "and",
         "+": "plus",
         "=": "equals",
@@ -403,338 +332,330 @@ def special_replace(text: str, language: str = "en") -> str:
         "~": "tilde",
         "^": "caret",
     }
-
     for char, replacement in replacements.items():
         text = text.replace(char, f" {replacement} ")
+    text = re.sub(r"\s+", " ", text).strip()
 
-    # Clean up multiple spaces
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
+    # Restore placeholders
+    for i, ph in enumerate(placeholders):
+        text = text.replace(f"__PH_{i}__", ph)
+
+    return text
+
+
+# ===================================================================
+# Legacy-flag → Config mapping  (for **kwargs backward compat)
+# ===================================================================
+
+_LEGACY_FLAG_MAP: dict[str, str] = {
+    "normalize_spacing": "spacing",
+    "fix_dot_letters": "acronyms",  # dot-letter expansion controlled by acronyms toggle
+    "apply_pronunciation_overrides_flag": "pronunciation_overrides",
+    "expand_abbreviations_flag": "abbreviations",
+    "expand_acronyms_flag": "acronyms",
+    "normalize_elongated_flag": "elongated",
+    "normalize_fractions_flag": "fractions",
+    "normalize_x_kali_flag": "x_kali",
+    "normalize_temperature_flag": "temperature",
+    "normalize_ic_flag": "ic",
+    "normalize_measurements_flag": "measurements",
+    "normalize_hari_bulan_flag": "hari_bulan",
+    "normalize_hijri_flag": "hijri",
+}
+
+_LEGACY_DEFAULTS: dict[str, object] = {
+    "normalize_spacing": True,
+    "fix_dot_letters": True,
+    "sound_words_field": "",
+    "apply_pronunciation_overrides_flag": True,
+    "expand_abbreviations_flag": True,
+    "expand_acronyms_flag": True,
+    "normalize_elongated_flag": True,
+    "normalize_fractions_flag": True,
+    "normalize_x_kali_flag": True,
+    "normalize_temperature_flag": True,
+    "normalize_ic_flag": True,
+    "normalize_measurements_flag": True,
+    "normalize_hari_bulan_flag": True,
+    "normalize_hijri_flag": True,
+    "extract_entities_first": False,
+    "config": None,
+}
+
+
+# ===================================================================
+# THE ONE PIPELINE
+# ===================================================================
 
 
 def normalize_text(
     text: str,
     language: str = "en",
-    config: Optional["NormalizationConfig"] = None,
-    # New entity extraction flag
-    extract_entities_first: bool = False,
-    # Legacy flags (deprecated but still supported for backward compatibility)
-    normalize_spacing: bool = True,
-    fix_dot_letters: bool = True,
-    sound_words_field: str = "",
-    apply_pronunciation_overrides_flag: bool = True,
-    expand_abbreviations_flag: bool = True,
-    expand_acronyms_flag: bool = True,
-    normalize_elongated_flag: bool = True,
-    normalize_fractions_flag: bool = True,
-    normalize_x_kali_flag: bool = True,
-    normalize_temperature_flag: bool = True,
-    normalize_ic_flag: bool = True,
-    normalize_measurements_flag: bool = True,
-    normalize_hari_bulan_flag: bool = True,
-    normalize_hijri_flag: bool = True,
+    profile: Optional[str] = None,
+    disable: Optional[list[str]] = None,
+    **kwargs: object,
 ) -> str:
+    """Normalize *text* for TTS in the given *language*.
+
+    Parameters
+    ----------
+    text : str
+        Input text to normalize.
+    language : str
+        ``"en"`` for English, ``"ms"`` for Malay.
+    profile : str or None
+        One of ``"minimal"``, ``"basic"``, ``"standard"``, ``"aggressive"``.
+        If *None* the standard profile (all features on) is used.
+    disable : list[str] or None
+        Feature names to turn off, e.g. ``["acronyms", "measurements"]``.
+    **kwargs
+        Legacy boolean flags — accepted for backward compatibility but emit
+        a ``DeprecationWarning``.  Supported names:
+        ``normalize_spacing``, ``fix_dot_letters``, ``sound_words_field``,
+        ``apply_pronunciation_overrides_flag``, ``expand_abbreviations_flag``,
+        ``expand_acronyms_flag``, ``normalize_elongated_flag``,
+        ``normalize_fractions_flag``, ``normalize_x_kali_flag``,
+        ``normalize_temperature_flag``, ``normalize_ic_flag``,
+        ``normalize_measurements_flag``, ``normalize_hari_bulan_flag``,
+        ``normalize_hijri_flag``, ``extract_entities_first``, ``config``.
+
+    Returns
+    -------
+    str
+        Normalized text.
     """
-    Main text normalization function.
+    # --- Build config ------------------------------------------------
+    cfg = _build_config(profile, disable, kwargs)
 
-    Args:
-        text: The input text to normalize
-        language: Language code ('en' for English, 'ms' for Malay)
-        config: NormalizationConfig object (NEW - recommended approach).
-                If provided, legacy flags are ignored.
-        extract_entities_first: If True, use entity extraction approach.
-                              Extracts entities first, processes non-entity text safely,
-                              then restores entities as spoken form. Prevents pattern
-                              conflicts (e.g., date vs fraction). EXPERIMENTAL.
-        expand_acronyms_flag: Whether to expand acronyms letter-by-letter (NEW)
-        [legacy flags]: Individual boolean flags (DEPRECATED - use config instead).
-                        These are still supported for backward compatibility.
-
-    Returns:
-        Normalized text string
-
-    Examples:
-        >>> # New API (recommended)
-        >>> from revo_norm.config import standard_config
-        >>> result = normalize_text("Hello world", language="en", config=standard_config())
-
-        >>> # Simple usage (uses standard profile)
-        >>> result = normalize_text("Hello world", language="en")
-
-        >>> # With custom config
-        >>> from revo_norm.config import NormalizationConfig, FeatureGroup, FeatureLevel
-        >>> config = NormalizationConfig.from_preset("standard")
-        >>> config.with_feature(FeatureGroup.ACRONYMS, FeatureLevel.OFF)
-        >>> result = normalize_text("The API is fast", language="en", config=config)
-
-        >>> # Legacy API (still works)
-        >>> result = normalize_text("Hello", language="en", normalize_spacing=True)
-    """
     text = text.strip()
-    if not text or len(text) == 0:
+    if not text:
         return ""
 
-    # NEW: Entity extraction approach
-    # Check if extract_entities_first flag is set, regardless of config
-    if extract_entities_first:
-        return _normalize_with_entity_extraction(text, language, config)
+    # --- Step 1: Currency K/M/B/T suffix expansion (always runs) -----
+    text = CURRENCY_T_SUFFIX_PATTERN.sub(expand_currency_t_suffix, text)
+    text = CURRENCY_B_SUFFIX_PATTERN.sub(expand_currency_b_suffix, text)
+    text = CURRENCY_M_SUFFIX_PATTERN.sub(expand_currency_m_suffix, text)
+    text = CURRENCY_K_SUFFIX_PATTERN.sub(expand_currency_k_suffix, text)
 
-    # Handle new config system vs legacy flags
-    if config is not None:
-        # Use new config-based approach
+    # --- Step 2: Entity extraction handles all entity patterns -----------
+    # No need for Malay preprocessor — entity extraction runs before
+    # any URL/email regex processing, preventing pattern conflicts.
 
-        # Override language if specified in config
-        effective_language = config.language or language
-
-        # Convert config to legacy flags for backward compatibility
-        # This allows us to keep the existing implementation while supporting new API
-        legacy_flags = config.to_legacy_flags(effective_language)
-
-        normalize_spacing = legacy_flags["normalize_spacing"]
-        fix_dot_letters = legacy_flags["fix_dot_letters"]
-        sound_words_field = legacy_flags["sound_words_field"]
-        apply_pronunciation_overrides_flag = legacy_flags["apply_pronunciation_overrides_flag"]
-        expand_abbreviations_flag = legacy_flags["expand_abbreviations_flag"]
-        expand_acronyms_flag = legacy_flags["expand_acronyms_flag"]
-        normalize_elongated_flag = legacy_flags["normalize_elongated_flag"]
-        normalize_fractions_flag = legacy_flags["normalize_fractions_flag"]
-        normalize_x_kali_flag = legacy_flags["normalize_x_kali_flag"]
-        normalize_temperature_flag = legacy_flags["normalize_temperature_flag"]
-        normalize_ic_flag = legacy_flags["normalize_ic_flag"]
-        normalize_measurements_flag = legacy_flags["normalize_measurements_flag"]
-        normalize_hari_bulan_flag = legacy_flags["normalize_hari_bulan_flag"]
-        normalize_hijri_flag = legacy_flags["normalize_hijri_flag"]
-    else:
-        # Use legacy flags (backward compatibility)
-        effective_language = language
-
-    # Expand currency suffixes FIRST (before URL/email conversion)
-    # Order matters: T → B → M → K (largest to smallest)
-    # This ensures RM1T/RM1B/RM1M/RM30K become full numbers before URL processing breaks them
-    text = CURRENCY_T_SUFFIX_PATTERN.sub(lambda m: expand_currency_t_suffix(m), text)
-    text = CURRENCY_B_SUFFIX_PATTERN.sub(lambda m: expand_currency_b_suffix(m), text)
-    text = CURRENCY_M_SUFFIX_PATTERN.sub(lambda m: expand_currency_m_suffix(m), text)
-    text = CURRENCY_K_SUFFIX_PATTERN.sub(lambda m: expand_currency_k_suffix(m), text)
-
-    # Pre-process currency, dates, times, percentages BEFORE URL conversion
-    # to prevent the URL regex from mangling patterns like RM5.50 or 12/05/2026
-    if effective_language == "ms":
-        from revo_norm.normalizer_ms import (
-            _currency_re,
-            _date_re,
-            _date_ymd_re,
-            _percentage_re,
-            _time_no_meridian_re,
-            _time_re,
-            normalize_currency,
-            normalize_date,
-            normalize_date_ymd,
-            normalize_percentage,
-            normalize_time,
-            normalize_time_no_meridian,
-        )
-
-        text = _date_ymd_re.sub(normalize_date_ymd, text)
-        text = _date_re.sub(normalize_date, text)
-        text = _currency_re.sub(normalize_currency, text)
-        text = _time_re.sub(normalize_time, text)
-        text = _time_no_meridian_re.sub(normalize_time_no_meridian, text)
-        text = _percentage_re.sub(normalize_percentage, text)
-
-    # Convert emails and URLs (after currency/date pre-processing)
-    # NOTE: Process emails BEFORE URLs to prevent URL pattern from matching
-    # the domain part of email addresses (e.g., example.com in user@example.com)
-    text = convert_emails_to_spoken(text, effective_language)
-    text = convert_urls_to_spoken(text)
-
-    # Apply pronunciation mappings FIRST (highest priority)
-    # This must happen before acronym/abbreviation expansion to prevent
-    # terms like "JSON" from being split into "J S O N"
-    text = apply_pronunciation_mappings(text, effective_language)
-
-    # Apply pronunciation overrides (legacy, for backward compatibility)
-    if apply_pronunciation_overrides_flag:
-        text = apply_pronunciation_overrides(text)
-
-    # Malaya-inspired normalizations (before language-specific processing)
-    if normalize_elongated_flag:
-        text = normalize_elongated_text(text)
-    if normalize_fractions_flag:
-        text = normalize_fractions(text, effective_language)
-    if normalize_x_kali_flag:
-        text = normalize_x_kali_text(text, effective_language)
-    if normalize_temperature_flag:
-        text = normalize_temperatures(text, effective_language)
-    if normalize_ic_flag:
-        text = normalize_ic_numbers(text, effective_language)
-    if normalize_measurements_flag:
-        text = normalize_measurements(text, effective_language)
-    # Hari bulan normalization BEFORE language-specific (using underscore to avoid contraction)
-    if normalize_hari_bulan_flag:
-        text = normalize_hari_bulan_text(text, effective_language)
-    if normalize_hijri_flag:
-        text = normalize_hijri_years(text, effective_language)
-
-    # Language-specific normalization
-    if effective_language == "en":
-        text = text_normalizer_en(text)
-    elif effective_language == "ms":
-        text = text_normalizer_ms(text)
-
-    # Remove sound words
-    if sound_words_field and sound_words_field.strip():
-        sound_words = parse_sound_word_field(sound_words_field)
-        if sound_words:
-            text = smart_remove_sound_words(text, sound_words)
-
-    # Expand abbreviations and short forms (e.g., km -> kilometer, sqrt -> square root)
-    if expand_abbreviations_flag:
-        text = expand_abbreviations(text, effective_language)
-
-    # Normalize spacing
-    if normalize_spacing:
-        text = normalize_whitespace(text)
-
-    # Handle letter-period sequences and optionally acronyms
-    # Letter-period: I.B.M. → I B M (always runs if fix_dot_letters is enabled)
-    # Acronyms: IBM → I B M (only runs if expand_acronyms_flag is enabled)
-    if fix_dot_letters or expand_acronyms_flag:
-        text = replace_letter_period_sequences(text, process_acronyms=expand_acronyms_flag)
-
-    # Insert comma after repeated words
-    text = insert_comma_after_repeated_words(text, min_repeat=3)
-
-    # Apply special character replacements
-    text = special_replace(text, effective_language)
-
-    return text
-
-
-def _normalize_with_entity_extraction(
-    text: str,
-    language: str,
-    config: Optional["NormalizationConfig"],
-) -> str:
-    """
-    Normalize text using entity extraction approach.
-
-    This 3-phase approach prevents pattern conflicts:
-    1. Extract entities → replace with placeholders
-    2. Process non-entity text safely (NO basic normalization to avoid placeholder processing)
-    3. Restore entities as spoken form
-
-    Args:
-        text: Input text
-        language: Language code
-        config: Normalization config
-
-    Returns:
-        Normalized text
-    """
+    # --- Step 3: Entity extraction → placeholders --------------------
     from revo_norm.entity_extractor import EntityExtractor, EntityType
 
-    try:
-        # Determine effective language
-        effective_language = language
-        if config and config.language:
-            effective_language = config.language
+    # Entities that are always extracted (core infrastructure + protection)
+    always_extract = [
+        EntityType.EMAIL,
+        EntityType.URL,
+        EntityType.CURRENCY,
+        # DATE and TIME always extracted to protect from language normalizer
+        # (EN normalizer has its own date/time regexes)
+        EntityType.DATE,
+        EntityType.TIME,
+    ]
+    # Feature-gated entities — only extracted when enabled
+    if cfg.temperature:
+        always_extract.append(EntityType.TEMPERATURE)
+    if cfg.fractions:
+        always_extract.append(EntityType.FRACTION)
+    if cfg.x_kali:
+        always_extract.append(EntityType.X_KALI)
+    if cfg.ic:
+        always_extract.append(EntityType.IC)
+    if cfg.hari_bulan:
+        always_extract.append(EntityType.HARI_BULAN)
+    if cfg.hijri:
+        always_extract.append(EntityType.HIJRI)
 
-        # Determine which entities to extract based on config
-        # Always extract these (they have specific patterns that don't conflict)
-        # IMPORTANT: Extract EMAIL before URL to prevent URL pattern from matching domain in emails
-        always_extract = [
-            EntityType.EMAIL,
-            EntityType.URL,
-            EntityType.CURRENCY,  # Protect currency from acronym/abbreviation expansion
-            EntityType.TEMPERATURE,
-            EntityType.FRACTION,
-            EntityType.X_KALI,
-            EntityType.IC,
-            EntityType.HARI_BULAN,
-            EntityType.HIJRI,
-        ]
+    # DATE/TIME are always extracted but only spoken when enabled
+    speak_entities: set[object] = {
+        EntityType.EMAIL,
+        EntityType.URL,
+        EntityType.CURRENCY,
+    }
+    if cfg.temperature:
+        speak_entities.add(EntityType.TEMPERATURE)
+    if cfg.fractions:
+        speak_entities.add(EntityType.FRACTION)
+    if cfg.x_kali:
+        speak_entities.add(EntityType.X_KALI)
+    if cfg.ic:
+        speak_entities.add(EntityType.IC)
+    if cfg.hari_bulan:
+        speak_entities.add(EntityType.HARI_BULAN)
+    if cfg.hijri:
+        speak_entities.add(EntityType.HIJRI)
+    if cfg.dates:
+        speak_entities.add(EntityType.DATE)
+    if cfg.times:
+        speak_entities.add(EntityType.TIME)
 
-        # Conditionally extract these based on config
-        enabled_entities = []
-        if config:
-            # Only extract dates if enabled
-            if config.is_enabled("dates"):  # type: ignore[arg-type]
-                enabled_entities.append(EntityType.DATE)
-            # Only extract times if enabled
-            if config.is_enabled("times"):  # type: ignore[arg-type]
-                enabled_entities.append(EntityType.TIME)
-        else:
-            # No config provided - extract all entities by default for entity extraction mode
-            enabled_entities = [EntityType.DATE, EntityType.TIME]
+    extractor = EntityExtractor()
+    protected_text, _entities = extractor.extract(text, always_extract)
 
-        # Combine always + conditionally extracted entities
-        entities_to_extract = enabled_entities + always_extract
+    # --- Step 4: Pronunciation mappings (always, on protected text) --
+    protected_text = apply_pronunciation_mappings(protected_text, language)
 
-        # Phase 1: Extract entities and apply pronunciation mappings
-        extractor = EntityExtractor()
-        protected_text, entities = extractor.extract(text, entities_to_extract)
+    # --- Step 5: Stash placeholders to protect from downstream processing --
+    protected_text, ph_stash = _stash_placeholders(protected_text)
 
-        # Apply pronunciation mappings BEFORE processing non-entity text
-        # This ensures terms like "JSON" → "jay son" and preserves acronyms like "ML"
-        protected_text = apply_pronunciation_mappings(protected_text, effective_language)
+    # --- Step 6: Feature-gated processing on non-entity text ---------
+    # Pronunciation overrides
+    if cfg.pronunciation_overrides:
+        protected_text = apply_pronunciation_overrides(protected_text)
 
-        # Phase 2: Process non-entity text (text quality features only, NO basic normalization)
-        # Basic normalization will be applied to entities during restoration
+    # Elongated words
+    if cfg.elongated:
+        protected_text = normalize_elongated_text(protected_text)
 
-        # Normalize spacing (if enabled)
-        spacing_enabled = True
-        if config:
-            spacing_enabled = config.is_enabled("spacing")  # type: ignore[arg-type]
-        if spacing_enabled:
-            protected_text = normalize_whitespace(protected_text)
+    # Measurements — MUST run before language normalizer and acronym expansion
+    # to prevent "5km" → "five K M" (acronym split) instead of "five kilometers"
+    if cfg.measurements:
+        protected_text = normalize_measurements(protected_text, language)
 
-        # Remove sound words
-        sound_words_field = ""
-        if config:
-            sound_words_field = "\n".join(config.sound_words)
-        if sound_words_field and sound_words_field.strip():
-            sound_words = parse_sound_word_field(sound_words_field)
-            if sound_words:
-                protected_text = smart_remove_sound_words(protected_text, sound_words)
+    # X-kali — run before language normalizer for the same reason
+    if cfg.x_kali:
+        protected_text = normalize_x_kali_text(protected_text, language)
 
-        # Expand abbreviations (if enabled)
-        abbreviations_enabled = True
-        if config:
-            abbreviations_enabled = config.is_enabled("abbreviations")  # type: ignore[arg-type]
-        if abbreviations_enabled:
-            protected_text = expand_abbreviations(protected_text, effective_language)
+    # Language-specific normalizer (always runs for contractions, numbers, etc.)
+    if language == "en":
+        protected_text = text_normalizer_en(protected_text)
+    elif language == "ms":
+        protected_text = text_normalizer_ms(protected_text)
 
-        # Expand acronyms (if enabled)
-        acronyms_enabled = True
-        if config:
-            acronyms_enabled = config.is_enabled("acronyms")  # type: ignore[arg-type]
-        if acronyms_enabled:
-            protected_text = replace_letter_period_sequences(protected_text, process_acronyms=True)
+    # Spacing normalization
+    if cfg.spacing:
+        protected_text = _normalize_whitespace(protected_text)
 
-        # Insert comma after repeated words
-        protected_text = insert_comma_after_repeated_words(protected_text, min_repeat=3)
+    # Sound word removal
+    if cfg.sound_words:
+        sound_word_tuples = parse_sound_word_field("\n".join(cfg.sound_words))
+        if sound_word_tuples:
+            protected_text = smart_remove_sound_words(protected_text, sound_word_tuples)
 
-        # Normalize measurements (distance, volume, weight, duration)
-        # These need to be processed on protected text to avoid interfering with entity placeholders
-        from revo_norm.malaya_inspired_utils import normalize_measurements, normalize_x_kali_text
+    # Strip all bracketed content like [laughter], [music], etc. (aggressive profile)
+    if cfg.strip_bracketed:
+        protected_text = re.sub(r"\[[^\]]*\]\s*", "", protected_text)
 
-        protected_text = normalize_measurements(protected_text, effective_language)
+    # Abbreviation expansion (currently no-op)
+    if cfg.abbreviations:
+        protected_text = expand_abbreviations(protected_text, language)
 
-        # Normalize x-kali multiplier notation (10x, 5x, etc.)
-        # This should happen after measurements to avoid conflicts (e.g., "10x km")
-        protected_text = normalize_x_kali_text(protected_text, effective_language)
+    # Acronym expansion
+    if cfg.acronyms:
+        protected_text = replace_letter_period_sequences(protected_text, process_acronyms=True)
 
-        # Phase 3: Restore entities as spoken form
-        # Entities get converted directly without going through basic normalizer
-        result = extractor.restore(protected_text, effective_language)
+    # Comma insertion for repeated words (always)
+    protected_text = insert_comma_after_repeated_words(protected_text, min_repeat=3)
 
-        return result
+    # Special character replacement
+    if cfg.special_chars:
+        protected_text = special_replace(protected_text, language)
 
-    except Exception as e:
-        # If entity extraction fails, fall back to legacy approach
-        import logging
+    # --- Step 7: Restore placeholders then entities as spoken form ---
+    protected_text = _unstash_placeholders(protected_text, ph_stash)
+    result = _restore_entities(protected_text, extractor, speak_entities, language)
 
-        logging.warning(f"Entity extraction failed: {e}. Falling back to legacy normalization.")
-        # Return original text (normalized or not)
-        # Don't recursively call normalize_text
-        return text
+    return result
+
+
+# ===================================================================
+# Config builder
+# ===================================================================
+
+
+def _build_config(
+    profile: Optional[str],
+    disable: Optional[list[str]],
+    kwargs: dict,
+) -> Config:
+    """Resolve profile / disable / legacy **kwargs into a Config."""
+    # Check for legacy config= kwarg first
+    legacy_config = kwargs.pop("config", None)
+
+    # Detect non-default legacy flags
+    has_legacy = any(k in _LEGACY_DEFAULTS for k in kwargs)
+    has_legacy_nondefault = False
+    if has_legacy:
+        for k, v in kwargs.items():
+            if k in _LEGACY_DEFAULTS and v != _LEGACY_DEFAULTS[k]:
+                has_legacy_nondefault = True
+                break
+
+    if has_legacy:
+        warnings.warn(
+            "Passing individual flags to normalize_text() is deprecated. "
+            "Use profile= and disable= parameters instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
+    # If an old NormalizationConfig was passed, use it directly
+    if legacy_config is not None:
+        warnings.warn(
+            "The config= parameter is deprecated. Use profile= and disable= instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        if isinstance(legacy_config, Config):
+            return legacy_config
+        # Unexpected type — fall through
+        return Config()
+
+    # Build from profile + disable
+    cfg = Config.from_profile(profile) if profile is not None else Config()
+
+    if disable:
+        for f in disable:
+            if hasattr(cfg, f):
+                setattr(cfg, f, False)
+
+    # Apply legacy boolean flags on top
+    if has_legacy_nondefault:
+        for flag_name, value in kwargs.items():
+            if flag_name == "sound_words_field":
+                # sound_words_field is a string; convert to list
+                if isinstance(value, str) and value.strip():
+                    cfg.sound_words = [line.strip() for line in value.split("\n") if line.strip()]
+                continue
+            if flag_name == "extract_entities_first":
+                # Was a mode selector, now always entity-extraction; ignore
+                continue
+            if flag_name in _LEGACY_FLAG_MAP:
+                field_name = _LEGACY_FLAG_MAP[flag_name]
+                setattr(cfg, field_name, bool(value))
+
+    return cfg
+
+
+# ===================================================================
+# Malay pre-processing helper
+# ===================================================================
+
+
+def _preprocess_malay_patterns(text: str) -> str:
+    """Pre-process Malay-specific currency, dates, times, percentages
+    before URL regex runs (prevents URL pattern from mangling them)."""
+    from revo_norm.normalizer_ms import (
+        _currency_re,
+        _date_re,
+        _date_ymd_re,
+        _percentage_re,
+        _time_no_meridian_re,
+        _time_re,
+        normalize_currency,
+        normalize_date,
+        normalize_date_ymd,
+        normalize_percentage,
+        normalize_time,
+        normalize_time_no_meridian,
+    )
+
+    text = _date_ymd_re.sub(normalize_date_ymd, text)
+    text = _date_re.sub(normalize_date, text)
+    text = _currency_re.sub(normalize_currency, text)
+    text = _time_re.sub(normalize_time, text)
+    text = _time_no_meridian_re.sub(normalize_time_no_meridian, text)
+    text = _percentage_re.sub(normalize_percentage, text)
+    return text

@@ -26,10 +26,8 @@ class EntityType(str, Enum):
     EMAIL = "email"
     DATE = "date"
     TIME = "time"
-    PHONE = "phone"
     CURRENCY = "currency"
     FRACTION = "fraction"
-    MEASUREMENT = "measurement"
     TEMPERATURE = "temperature"
     IC = "ic"
     HARI_BULAN = "hari_bulan"
@@ -296,7 +294,7 @@ class EntityExtractor:
     def _convert_entity_to_spoken(self, entity: Entity, language: str) -> str:
         """Convert an entity to its spoken form based on type and language."""
         # Import here to avoid circular dependencies
-        from revo_norm.malaya_inspired_utils import (
+        from revo_norm.malay_features import (
             normalize_fractions,
             normalize_hari_bulan_text,
             normalize_hijri_years,
@@ -574,7 +572,7 @@ class EntityExtractor:
             expand_currency_m_suffix,
             expand_currency_t_suffix,
         )
-        from revo_norm.num2word import to_cardinal as num2word
+        from revo_norm.num2word_ms import to_cardinal as num2word
 
         # Initialize inflect engine for English number-to-words conversion
         _inflect_engine = inflect.engine()

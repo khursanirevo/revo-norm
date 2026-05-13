@@ -1,7 +1,7 @@
 import re
 
 from revo_norm.currency_utils import CURRENCY_K_SUFFIX_PATTERN, expand_currency_k_suffix
-from revo_norm.num2word import to_cardinal as num2word
+from revo_norm.num2word_ms import to_cardinal as num2word
 
 numbers_mapping_malay = {
     "0": "kosong",

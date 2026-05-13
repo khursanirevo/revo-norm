@@ -16,11 +16,11 @@ def expand_currency_k_suffix(m):
     This is a universal function that works across all languages.
 
     Examples:
-        RM30K → RM30000
-        RM70K → RM70000
-        RM1.5K → RM1500
-        $50K → $50000
-        EUR100K → EUR100000
+        RM30K -> RM30000
+        RM70K -> RM70000
+        RM1.5K -> RM1500
+        $50K -> $50000
+        EUR100K -> EUR100000
     """
     symbol = m.group(1)  # RM, $, etc.
     amount = m.group(2)  # e.g., "30", "1.5"
@@ -36,44 +36,48 @@ def expand_currency_k_suffix(m):
 
 def expand_currency_m_suffix(m):
     """
-    Expand currency with 'M' suffix (millions) to word form.
-    Outputs "{symbol}{amount} million" so the downstream currency regex
-    can handle it without the raw large number confusing other normalizers.
+    Expand currency with 'M' suffix (millions) to full number.
 
     Examples:
-        RM19m  → RM19 million
-        $5M    → $5 million
-        RM1.5M → RM1.5 million
+        RM19m  -> RM19000000
+        $5M    -> $5000000
+        RM1.5M -> RM1500000
     """
     symbol = m.group(1)
     amount = m.group(2)
-    return f"{symbol}{amount} million"
+    amount_float = float(amount) * 1_000_000
+    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
+    return f"{symbol}{amount_final}"
 
 
 def expand_currency_b_suffix(m):
     """
-    Expand currency with 'B' suffix (billions) to word form.
+    Expand currency with 'B' suffix (billions) to full number.
 
     Examples:
-        RM1B   → RM1 billion
-        $2.5B  → $2.5 billion
+        RM1B   -> RM1000000000
+        $2.5B  -> $2500000000
     """
     symbol = m.group(1)
     amount = m.group(2)
-    return f"{symbol}{amount} billion"
+    amount_float = float(amount) * 1_000_000_000
+    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
+    return f"{symbol}{amount_final}"
 
 
 def expand_currency_t_suffix(m):
     """
-    Expand currency with 'T' suffix (trillions) to word form.
+    Expand currency with 'T' suffix (trillions) to full number.
 
     Examples:
-        RM1T → RM1 trillion
-        $2T  → $2 trillion
+        RM1T -> RM1000000000000
+        $2T  -> $2000000000000
     """
     symbol = m.group(1)
     amount = m.group(2)
-    return f"{symbol}{amount} trillion"
+    amount_float = float(amount) * 1_000_000_000_000
+    amount_final = int(amount_float) if amount_float == int(amount_float) else amount_float
+    return f"{symbol}{amount_final}"
 
 
 # Regex pattern for currency with K suffix (thousands)
