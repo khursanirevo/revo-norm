@@ -23,14 +23,16 @@ from revo_norm.currency_utils import (
     expand_currency_m_suffix,
     expand_currency_t_suffix,
 )
-from revo_norm.malay_features import (
+from revo_norm.normalizer_en import text_normalize as text_normalizer_en
+from revo_norm.normalizer_ms import normalize_malay as text_normalizer_ms
+from revo_norm.normalizer_zh import text_normalize_zh as text_normalizer_zh
+from revo_norm.normalizer_zh_my import text_normalize_zh_my as text_normalizer_zh_my
+from revo_norm.pronunciation_mappings import apply_pronunciation_mappings
+from revo_norm.shared_features import (
     normalize_elongated_text,
     normalize_measurements,
     normalize_x_kali_text,
 )
-from revo_norm.normalizer_en import text_normalize as text_normalizer_en
-from revo_norm.normalizer_ms import normalize_malay as text_normalizer_ms
-from revo_norm.pronunciation_mappings import apply_pronunciation_mappings
 from revo_norm.tts_utils import parse_sound_word_field, smart_remove_sound_words
 
 if TYPE_CHECKING:
@@ -221,12 +223,13 @@ _PRONUNCIATION_UNIT_MAP = {
 }
 
 
-def apply_pronunciation_overrides(text: str) -> str:
+def apply_pronunciation_overrides(text: str, language: str = "en") -> str:
     """Apply pronunciation overrides for specific words and phrases."""
     for pattern, replacement in _PRONUNCIATION_OVERRIDE_PATTERNS:
         text = pattern.sub(replacement, text)
-    for _unit, (pattern, spoken) in _PRONUNCIATION_UNIT_MAP.items():
-        text = pattern.sub(rf"\1 {spoken}", text)
+    if language not in ("zh", "zh_my"):
+        for _unit, (pattern, spoken) in _PRONUNCIATION_UNIT_MAP.items():
+            text = pattern.sub(rf"\1 {spoken}", text)
     return text
 
 
@@ -415,7 +418,8 @@ def normalize_text(
     text : str
         Input text to normalize.
     language : str
-        ``"en"`` for English, ``"ms"`` for Malay.
+        ``"en"`` for English, ``"ms"`` for Malay, ``"zh"`` for Chinese,
+        ``"zh_my"`` for Malaysian Chinese.
     profile : str or None
         One of ``"minimal"``, ``"basic"``, ``"standard"``, ``"aggressive"``.
         If *None* the standard profile (all features on) is used.
@@ -516,7 +520,7 @@ def normalize_text(
     # --- Step 6: Feature-gated processing on non-entity text ---------
     # Pronunciation overrides
     if cfg.pronunciation_overrides:
-        protected_text = apply_pronunciation_overrides(protected_text)
+        protected_text = apply_pronunciation_overrides(protected_text, language)
 
     # Elongated words
     if cfg.elongated:
@@ -536,6 +540,10 @@ def normalize_text(
         protected_text = text_normalizer_en(protected_text)
     elif language == "ms":
         protected_text = text_normalizer_ms(protected_text)
+    elif language == "zh":
+        protected_text = text_normalizer_zh(protected_text)
+    elif language == "zh_my":
+        protected_text = text_normalizer_zh_my(protected_text)
 
     # Spacing normalization
     if cfg.spacing:

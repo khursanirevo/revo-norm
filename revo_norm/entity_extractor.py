@@ -294,7 +294,7 @@ class EntityExtractor:
     def _convert_entity_to_spoken(self, entity: Entity, language: str) -> str:
         """Convert an entity to its spoken form based on type and language."""
         # Import here to avoid circular dependencies
-        from revo_norm.malay_features import (
+        from revo_norm.shared_features import (
             normalize_fractions,
             normalize_hari_bulan_text,
             normalize_hijri_years,
@@ -346,6 +346,54 @@ class EntityExtractor:
         # Fallback: return original text
         return entity.text
 
+    @staticmethod
+    def _is_chinese(language: str) -> bool:
+        return language in ("zh", "zh_my")
+
+    @staticmethod
+    def _date_to_chinese(year: str, month: str, day: str) -> str:
+        from revo_norm.normalizer_zh import _num_to_day, _num_to_month
+        from revo_norm.num2word_zh import to_year
+        return f"{to_year(int(year))}年{_num_to_month(int(month))}{_num_to_day(int(day))}日"
+
+    @staticmethod
+    def _time_to_chinese(hour: str, minute: str, second: str | None, ampm: str | None) -> str:
+        from revo_norm.num2word_zh import to_cardinal
+        h, m = int(hour), int(minute)
+        meridian = ""
+        if ampm:
+            clean = ampm.replace(".", "").lower()
+            if clean in ("pm", "p.m.") or ampm == "下午":
+                meridian = "下午"
+            elif clean in ("am", "a.m.") or ampm == "上午":
+                meridian = "上午"
+        time_str = f"{to_cardinal(h)}点" if m == 0 else f"{to_cardinal(h)}点{to_cardinal(m)}分"
+        if second:
+            time_str += f"{to_cardinal(int(second))}秒"
+        return f"{meridian}{time_str}"
+
+    @staticmethod
+    def _currency_to_chinese(symbol: str, amount_str: str, zh_my: bool = False) -> str:
+        from revo_norm.num2word_zh import to_cardinal
+        units = {
+            "RM": "令吉", "MYR": "令吉",
+            "$": "块" if zh_my else "美元",
+            "USD": "美元", "EUR": "欧元", "€": "欧元",
+            "GBP": "英镑", "£": "英镑",
+            "JPY": "日元", "CNY": "元", "RMB": "元",
+        }
+        unit = units.get(symbol, symbol)
+        if "." in amount_str:
+            whole, frac = amount_str.split(".", 1)
+            frac = frac[:2]
+            cents = int(frac)
+            if whole == "0":
+                return f"{to_cardinal(cents)}分"
+            if cents > 0:
+                return f"{to_cardinal(int(whole))}{unit}{to_cardinal(cents)}分"
+            return f"{to_cardinal(int(whole))}{unit}"
+        return f"{to_cardinal(int(amount_str))}{unit}"
+
     def _convert_date_to_spoken(self, date_text: str, language: str) -> str:
         """Convert a date to spoken form."""
         # Import number normalizers
@@ -357,6 +405,8 @@ class EntityExtractor:
         slash_match = re.match(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", date_text)
         if slash_match:
             day, month, year = slash_match.groups()
+            if self._is_chinese(language):
+                return self._date_to_chinese(year, month, day)
             # Try to determine if DD/MM or MM/DD (assume DD/MM if day > 12)
             if int(day) > 12:
                 # DD/MM format
@@ -444,6 +494,8 @@ class EntityExtractor:
         dash_match = re.match(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", date_text)
         if dash_match:
             year, month, day = dash_match.groups()
+            if self._is_chinese(language):
+                return self._date_to_chinese(year, month, day)
             if language == "en":
                 months = {
                     "01": "January",
@@ -492,6 +544,8 @@ class EntityExtractor:
         # Fallback: Let basic normalizer handle it
         if language == "en":
             return normalize_en(date_text)
+        elif self._is_chinese(language):
+            return date_text
         else:
             return normalize_ms(date_text)
 
@@ -512,6 +566,9 @@ class EntityExtractor:
             minute = time_match.group(2)
             second = time_match.group(3)
             ampm = time_match.group(4)
+
+            if self._is_chinese(language):
+                return self._time_to_chinese(hour, minute, second, ampm)
 
             if language == "en":
                 hour_spoken = normalize_en(hour)
@@ -551,6 +608,8 @@ class EntityExtractor:
         # Fallback: Let basic normalizer handle it
         if language == "en":
             return normalize_en(time_text)
+        elif self._is_chinese(language):
+            return time_text
         else:
             return normalize_ms(time_text)
 
@@ -617,6 +676,10 @@ class EntityExtractor:
         }
 
         unit_main, unit_sub = currency_names.get(symbol, (symbol.lower(), "cents"))
+
+        # Chinese: delegate to Chinese currency converter
+        if self._is_chinese(language):
+            return self._currency_to_chinese(symbol, amount_str, zh_my=(language == "zh_my"))
 
         # Handle decimal amounts
         if "." in amount_str:

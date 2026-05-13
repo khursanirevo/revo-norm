@@ -1,6 +1,6 @@
 # Language Support
 
-Revo-norm supports two languages with awareness of code-mixing patterns common in Southeast Asian contexts.
+Revo-norm supports four language codes with awareness of code-mixing patterns common in Southeast Asian contexts.
 
 ## Supported Languages
 
@@ -8,6 +8,8 @@ Revo-norm supports two languages with awareness of code-mixing patterns common i
 |------|----------|-------|
 | `en` | English | Full normalization with contractions, ordinals, abbreviations |
 | `ms` | Malay (Bahasa Melayu) | Full normalization with Malay number words, currency, local features |
+| `zh` | Chinese (Standard) | Numbers, dates, times, currency, measurements in 普通话 spoken form |
+| `zh_my` | Malaysian Chinese | Same as `zh` with colloquial currency (`$` → 块) and code-mixing support |
 
 ```python
 from revo_norm import normalize_text
@@ -17,13 +19,19 @@ result_en = normalize_text("25C outside", language="en")
 
 result_ms = normalize_text("25C di luar", language="ms")
 # "dua puluh lima darjah selsius di luar"
+
+result_zh = normalize_text("25C", language="zh")
+# "二十五摄氏度"
+
+result_zh_my = normalize_text("花了 RM50 吃饭", language="zh_my")
+# "花了 五十令吉 吃饭"
 ```
 
 ---
 
 ## Code-Mixing
 
-Malaysian Malay text frequently mixes in English terms. Revo-norm handles this naturally -- the language parameter controls which normalizer runs on the non-entity text, but English technical terms (API, ML, GPU, etc.) are handled consistently regardless of language.
+Malaysian text frequently mixes languages. Revo-norm handles this naturally -- the language parameter controls which normalizer runs on the non-entity text, but English technical terms (API, ML, GPU, etc.) are handled consistently regardless of language. Malaysian Chinese (`zh_my`) is specifically designed for code-mixed CJK + Latin text.
 
 ```python
 # English terms in a Malay sentence
@@ -227,6 +235,115 @@ Islamic/Hijri year conversion is supported:
 ```python
 normalize_text("Tahun Hijri 1446", language="ms")
 # Hijri year converted to spoken form
+```
+
+---
+
+## Chinese Specifics (`language="zh"` / `language="zh_my"`)
+
+### Number Words
+
+Numbers are converted to Chinese cardinal words following standard conventions:
+
+| Number | Chinese |
+|--------|---------|
+| 0 | 零 |
+| 1 | 一 |
+| 10 | 十 |
+| 11 | 十一 |
+| 100 | 一百 |
+| 101 | 一百零一 |
+| 1000 | 一千 |
+| 10000 | 一万 |
+| 100000000 | 一亿 |
+| 1000000000000 | 一兆 |
+
+```python
+normalize_text("100", language="zh")       # "一百"
+normalize_text("10001", language="zh")     # "一万零一"
+normalize_text("123456789", language="zh") # "一亿二千三百四十五万六千七百八十九"
+```
+
+### Years
+
+Four-digit numbers in the 1000-2099 range are read digit-by-digit:
+
+```python
+normalize_text("2025", language="zh")  # "二零二五"
+normalize_text("1999", language="zh")  # "一九九九"
+```
+
+### Currency
+
+| Symbol | zh | zh_my |
+|--------|----|-------|
+| `RM` | 令吉 | 令吉 |
+| `$` | 美元 | 块 (colloquial) |
+| `USD` | 美元 | 美元 |
+
+```python
+normalize_text("RM100.50", language="zh")    # "一百令吉五十分"
+normalize_text("$100", language="zh")         # "一百美元"
+normalize_text("$100", language="zh_my")      # "一百块"
+normalize_text("USD50", language="zh_my")     # "五十美元"
+```
+
+### Dates
+
+Dates use Chinese year (digit-by-digit), month, and day names:
+
+```python
+normalize_text("15/08/2025", language="zh")   # "二零二五年八月十五日"
+normalize_text("2025-12-25", language="zh")    # "二零二五年十二月二十五日"
+```
+
+### Times
+
+Time expressions use 上午/下午 (AM/PM) with 点 and 分:
+
+```python
+normalize_text("3:30 pm", language="zh")  # "下午三点三十分"
+normalize_text("9:00 am", language="zh")   # "上午九点"
+normalize_text("14:30", language="zh")     # "十四点三十分"
+```
+
+### Temperature and Measurements
+
+```python
+normalize_text("25C", language="zh")      # "二十五摄氏度"
+normalize_text("36.5C", language="zh")    # "三十六点五摄氏度"
+normalize_text("5km", language="zh")      # "五公里"
+normalize_text("10kg", language="zh")     # "十公斤"
+normalize_text("200ml", language="zh")    # "二百毫升"
+```
+
+### Percentages and Decimals
+
+```python
+normalize_text("50%", language="zh")      # "百分之五十"
+normalize_text("3.14", language="zh")     # "三点一四"
+```
+
+### Code-Mixing (zh_my)
+
+Malaysian Chinese text frequently mixes CJK characters with Latin script. The `zh_my` normalizer handles this naturally:
+
+```python
+normalize_text("今天花了 RM100 买了 3 件东西", language="zh_my")
+# "今天花了 一百令吉 买了 三 件东西"
+
+normalize_text("距离 5km，温度 30C", language="zh_my")
+# "距离 五公里，温度 三十摄氏度"
+```
+
+### Feature Toggles
+
+All config flags (`disable`, `profile`) work consistently for Chinese:
+
+```python
+normalize_text("25C", language="zh", disable=["temperature"])  # "25C"
+normalize_text("25C", language="zh", profile="minimal")         # "25C"
+normalize_text("25C", language="zh", profile="standard")        # "二十五摄氏度"
 ```
 
 ---
