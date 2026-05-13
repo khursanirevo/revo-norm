@@ -22,13 +22,13 @@ uv sync --group dev
 uv run pytest ../tests/revo-norm/
 
 # Run specific test file
-uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py -v
+uv run pytest ../tests/revo-norm/<test_file>.py -v
 
 # Run tests with coverage
 uv run pytest ../tests/revo-norm/ --cov --cov-report=term-missing
 
 # Run specific test
-uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
+uv run pytest ../tests/revo-norm/<test_file>.py::TestClass::test_name -v
 
 # Format code (ruff)
 uv run ruff format revo_norm/
@@ -129,29 +129,16 @@ Rule-based entity-aware normalization with specific ordering requirements.
 
 ## Testing
 
-> **NOTE:** Test cases are stored in the parent ChatterBox repository (private) to keep challenge data private.
-> Test location: `../tests/revo-norm/` (relative to revo-norm directory)
-
-### Test Structure
-- `../tests/revo-norm/test_normalization_comprehensive.py` - 45 tests covering all features
-- `../tests/revo-norm/test_entity_extraction.py` - 16 tests for entity extraction system
-- `../tests/revo-norm/test_missing_coverage.py` - 26 tests for coverage gaps
-- `../tests/revo-norm/test_pronunciation_mappings.py` - 19 tests for pronunciation mappings
+Tests are maintained in a separate repository.
 
 ### Running Tests
 
 ```bash
-# Run all tests (from revo-norm directory)
+# Run all tests
 uv run pytest ../tests/revo-norm/
 
 # Run with coverage
 uv run pytest ../tests/revo-norm/ --cov
-
-# Run specific test class
-uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature -v
-
-# Run specific test
-uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
 
 # Debug with verbose output
 uv run pytest ../tests/revo-norm/ -v --tb=short
@@ -167,10 +154,10 @@ uv run pytest ../tests/revo-norm/ -v --tb=short
 
 ```bash
 # When modifying a feature, run its specific test class
-uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature -v
+uv run pytest ../tests/revo-norm/<test_file>.py::TestClass -v
 
 # After changes, verify no regressions
-uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py
+uv run pytest ../tests/revo-norm/<test_file>.py
 ```
 
 ## Important Patterns
@@ -187,7 +174,7 @@ uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py
 
 3. **Config support**: Add feature group to `config.py` if needed
 
-4. **Tests**: Add tests in `test_normalization_comprehensive.py`
+4. **Tests**: Add tests in the appropriate test file
 
 ### Pattern Matching Guidelines
 
@@ -227,7 +214,6 @@ uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py
 - `revo_norm/entity_extractor.py` - Added currency entity type and conversion
 - `revo_norm/config.py` - Added DATES and TIMES feature groups
 - `revo_norm/__init__.py` - Exported new classes
-- `tests/test_pronunciation_mappings.py` - NEW test file for pronunciation mappings (19 tests)
 
 ### Entity Extraction System (Recommended)
 

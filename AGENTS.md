@@ -15,7 +15,7 @@
 
 ## Testing Instructions
 
-Tests live outside this repo at `../tests/revo-norm/` (private challenge data).
+Tests are maintained in a separate repository.
 
 - Run all tests: `uv run pytest ../tests/revo-norm/ -v --tb=short`
 - Run with coverage: `uv run pytest ../tests/revo-norm/ --cov --cov-report=term-missing`
@@ -175,7 +175,7 @@ Add to `.vscode/settings.json`:
 
 ## Testing Guidelines
 
-- Test files are in `../tests/revo-norm/` (private repo)
+- Test files are in a separate repository
 - `conftest.py` provides shared fixtures: `normalize`, `pronunciation_state`, `assert_contains_any`, `assert_normalized`
 - Use `pronunciation_state` fixture when calling `add_custom_mapping()` — it saves/restores global state
 - Use `assert_contains_any(result, ["a", "b"])` instead of `assert "a" in result or "b" in result`
