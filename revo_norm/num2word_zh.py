@@ -3,25 +3,17 @@ Chinese number-to-words conversion for TTS.
 
 Supports cardinal numbers from 0 to 10^16 (兆).
 Handles special Chinese number conventions:
-- 十 (10) not 一十
+- 十 (10) standalone, 一十 (10 embedded in compound)
 - 一百零一 (101)
-- 两千 (2000 colloquial) is NOT used — formal 二千 is used for TTS clarity
+- 一万零一 (10001) — 零 between groups with skipped digits
 """
 
 _DIGITS = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
-_UNITS = ["", "十", "百", "千"]
 _LARGE_UNITS = ["", "万", "亿", "兆"]
 
 
 def to_cardinal(number: int | float) -> str:
-    """Convert a number to Chinese cardinal words.
-
-    Args:
-        number: The number to convert (0 to 10^16).
-
-    Returns:
-        Chinese spoken form of the number.
-    """
+    """Convert a number to Chinese cardinal words."""
     if number < 0:
         return "负" + to_cardinal(abs(number))
 
@@ -29,7 +21,7 @@ def to_cardinal(number: int | float) -> str:
         int_part = int(number)
         dec_part = str(number).split(".", 1)[1]
         int_words = to_cardinal(int_part)
-        dec_words = " ".join(_DIGITS[int(d)] for d in dec_part)
+        dec_words = "".join(_DIGITS[int(d)] for d in dec_part)
         return f"{int_words}点{dec_words}"
 
     n = int(number)
@@ -41,27 +33,22 @@ def to_cardinal(number: int | float) -> str:
 
 
 def _convert_integer(n: int) -> str:
-    """Convert a non-negative integer to Chinese words."""
     if n < 10:
         return _DIGITS[n]
-
     if n < 100:
-        return _convert_tens(n)
-
+        return _convert_tens(n, embedded=False)
     if n < 1000:
         return _convert_hundreds(n)
-
     if n < 10000:
         return _convert_thousands(n)
-
     return _convert_large(n)
 
 
-def _convert_tens(n: int) -> str:
-    """Convert 10-99."""
+def _convert_tens(n: int, embedded: bool = False) -> str:
+    """Convert 10-99. embedded=True forces leading digit for 10-19."""
     tens = n // 10
     ones = n % 10
-    if tens == 1:
+    if tens == 1 and not embedded:
         return "十" if ones == 0 else f"十{_DIGITS[ones]}"
     return f"{_DIGITS[tens]}十" if ones == 0 else f"{_DIGITS[tens]}十{_DIGITS[ones]}"
 
@@ -75,10 +62,7 @@ def _convert_hundreds(n: int) -> str:
         return result
     if remainder < 10:
         return f"{result}零{_DIGITS[remainder]}"
-    tens_digit = remainder // 10
-    if tens_digit == 0:
-        return f"{result}零{_convert_tens(remainder)}"
-    return f"{result}{_convert_tens(remainder)}"
+    return f"{result}{_convert_tens(remainder, embedded=True)}"
 
 
 def _convert_thousands(n: int) -> str:
@@ -89,7 +73,8 @@ def _convert_thousands(n: int) -> str:
     if remainder == 0:
         return result
     if remainder < 100:
-        return f"{result}零{_convert_hundreds(remainder) if remainder >= 100 else _convert_tens(remainder) if remainder >= 10 else _DIGITS[remainder]}"
+        mid = _convert_tens(remainder, embedded=True) if remainder >= 10 else _DIGITS[remainder]
+        return f"{result}零{mid}"
     return f"{result}{_convert_hundreds(remainder)}"
 
 
@@ -98,54 +83,47 @@ def _convert_large(n: int) -> str:
     if n >= 10**16:
         raise OverflowError(f"Number {n} is too large (max 10^16)")
 
-    parts: list[str] = []
+    groups: list[tuple[int, int]] = []
     unit_idx = 0
-
-    while n > 0:
-        group = n % 10000
-        if group > 0:
-            group_str = _convert_group_of_4(group)
-            unit = _LARGE_UNITS[unit_idx]
-            parts.append(f"{group_str}{unit}")
-        n //= 10000
+    temp = n
+    while temp > 0:
+        group = temp % 10000
+        groups.append((group, unit_idx))
+        temp //= 10000
         unit_idx += 1
 
-    return "".join(reversed(parts))
+    result = ""
+    for i in range(len(groups) - 1, -1, -1):
+        group_val, unit_idx = groups[i]
+        if group_val == 0:
+            continue
+        group_str = _convert_group_of_4(group_val, leading=not result)
+        unit = _LARGE_UNITS[unit_idx]
+        if result and group_val < 1000:
+            result += "零"
+        result += f"{group_str}{unit}"
+
+    return result
 
 
-def _convert_group_of_4(n: int) -> str:
+def _convert_group_of_4(n: int, leading: bool = False) -> str:
     """Convert a 1-4 digit number within a larger number."""
     if n < 10:
         return _DIGITS[n]
     if n < 100:
-        return _convert_tens(n)
+        return _convert_tens(n, embedded=not leading)
     if n < 1000:
         return _convert_hundreds(n)
     return _convert_thousands(n)
 
 
 def to_year(year: int) -> str:
-    """Convert a year to Chinese spoken form (digit by digit).
-
-    Args:
-        year: 4-digit year.
-
-    Returns:
-        Year spoken digit by digit: 2025 → 二零二五
-    """
+    """Convert a year to Chinese spoken form (digit by digit)."""
     return "".join(_DIGITS[int(d)] for d in str(abs(year)))
 
 
 def to_currency(value: int | float, currency: str = "ringgit") -> str:
-    """Convert a number to Chinese currency spoken form.
-
-    Args:
-        value: The amount.
-        currency: Currency unit name (e.g. "令吉", "美元", "人民币").
-
-    Returns:
-        Currency amount in Chinese: 100 → 一百令吉
-    """
+    """Convert a number to Chinese currency spoken form."""
     if isinstance(value, float):
         int_part = int(value)
         dec_str = f"{value:.2f}".split(".", 1)[1]

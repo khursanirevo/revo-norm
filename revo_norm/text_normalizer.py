@@ -223,12 +223,13 @@ _PRONUNCIATION_UNIT_MAP = {
 }
 
 
-def apply_pronunciation_overrides(text: str) -> str:
+def apply_pronunciation_overrides(text: str, language: str = "en") -> str:
     """Apply pronunciation overrides for specific words and phrases."""
     for pattern, replacement in _PRONUNCIATION_OVERRIDE_PATTERNS:
         text = pattern.sub(replacement, text)
-    for _unit, (pattern, spoken) in _PRONUNCIATION_UNIT_MAP.items():
-        text = pattern.sub(rf"\1 {spoken}", text)
+    if language not in ("zh", "zh_my"):
+        for _unit, (pattern, spoken) in _PRONUNCIATION_UNIT_MAP.items():
+            text = pattern.sub(rf"\1 {spoken}", text)
     return text
 
 
@@ -519,7 +520,7 @@ def normalize_text(
     # --- Step 6: Feature-gated processing on non-entity text ---------
     # Pronunciation overrides
     if cfg.pronunciation_overrides:
-        protected_text = apply_pronunciation_overrides(protected_text)
+        protected_text = apply_pronunciation_overrides(protected_text, language)
 
     # Elongated words
     if cfg.elongated:
