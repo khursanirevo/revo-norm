@@ -11,9 +11,6 @@ import re
 
 from revo_norm.normalizer_zh import (
     _CURRENCY_UNITS,
-    _currency_k_re,
-    _date_re,
-    _date_ymd_re,
     _decimal_re,
     _num_to_day,
     _num_to_month,
@@ -172,16 +169,10 @@ def text_normalize_zh_my(text: str) -> str:
     Handles code-mixed text (CJK + Latin) by applying Chinese normalization
     to the full text. Latin words (English/Malay) are preserved as-is since
     Malaysian Chinese speakers naturally code-mix.
+
+    Dates, times, currency, temperature, and measurements are handled by
+    entity extraction and malay_features (which respect config flags).
     """
-    from revo_norm.currency_utils import expand_currency_k_suffix
-
-    text = re.sub(_currency_k_re, expand_currency_k_suffix, text)
-
-    text = re.sub(_date_ymd_re, normalize_date_ymd, text)
-    text = re.sub(_date_re, normalize_date, text)
-    text = re.sub(_currency_re, normalize_currency_my, text)
-    text = re.sub(_time_no_meridian_re, normalize_time_no_meridian, text)
-    text = re.sub(_time_re, normalize_time, text)
     text = re.sub(_percentage_re, normalize_percentage, text)
     text = re.sub(_decimal_re, normalize_decimal, text)
     text = re.sub(_number_with_commas_re, normalize_number_with_commas, text)

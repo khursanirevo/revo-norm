@@ -7,7 +7,7 @@ percentages, and decimals in standard Chinese (普通话) spoken form.
 
 import re
 
-from revo_norm.currency_utils import CURRENCY_K_SUFFIX_PATTERN, expand_currency_k_suffix
+from revo_norm.currency_utils import CURRENCY_K_SUFFIX_PATTERN
 from revo_norm.num2word_zh import to_cardinal, to_year
 
 # Currency symbol → Chinese unit name
@@ -235,16 +235,12 @@ def normalize_number_with_commas(m: re.Match) -> str:
 
 
 def text_normalize_zh(text: str) -> str:
-    """Main Chinese text normalization function."""
-    text = re.sub(_currency_k_re, expand_currency_k_suffix, text)
+    """Main Chinese text normalization function.
 
-    text = re.sub(_date_ymd_re, normalize_date_ymd, text)
-    text = re.sub(_date_re, normalize_date, text)
-    text = re.sub(_currency_re, normalize_currency, text)
-    text = re.sub(_time_no_meridian_re, normalize_time_no_meridian, text)
-    text = re.sub(_time_re, normalize_time, text)
-    text = re.sub(_temperature_re, normalize_temperature, text)
-    text = re.sub(_measurement_re, normalize_measurement, text)
+    Handles numbers, percentages, and decimals only.
+    Dates, times, currency, temperature, and measurements are handled by
+    entity extraction and malay_features (which respect config flags).
+    """
     text = re.sub(_percentage_re, normalize_percentage, text)
     text = re.sub(_decimal_re, normalize_decimal, text)
     text = re.sub(_number_with_commas_re, normalize_number_with_commas, text)
