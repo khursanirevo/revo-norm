@@ -1,0 +1,78 @@
+site_name: Revo Norm
+site_description: Text normalization library for TTS applications — English and Malay
+site_url: https://github.com/khursanirevo/revo-norm
+repo_url: https://github.com/khursanirevo/revo-norm
+repo_name: khursanirevo/revo-norm
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [revo_norm]
+          options:
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            members_order: source
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: installation.md
+    - Quick Start: quickstart.md
+  - API Reference:
+    - normalize_text(): api/normalize.md
+    - Config: api/config.md
+    - Entities: api/entities.md
+    - Pronunciation: api/pronunciation.md
+    - TTS Utilities: api/tts.md
+  - Features:
+    - Currency: features/currency.md
+    - Dates: features/dates.md
+    - Times: features/times.md
+    - Numbers: features/numbers.md
+    - Acronyms: features/acronyms.md
+    - Measurements: features/measurements.md
+    - Malay Features: features/malay.md
+  - Configuration: configuration.md
+  - Languages: languages.md
+  - Migration Guide: migration.md
+  - Changelog: changelog.md
