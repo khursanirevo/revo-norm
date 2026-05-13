@@ -126,7 +126,7 @@ def replace_letter_period_sequences(text: str, process_acronyms: bool = True) ->
     text = re.sub(r"(?<=[A-Za-z])-(?=[A-Za-z])", " ", text)
 
     if process_acronyms:
-        text = re.sub(r"\b[A-Z]{2,6}\b", lambda m: expand_acronym(m.group(0)), text)
+        text = re.sub(r"\b[A-Z]{2,10}\b", lambda m: expand_acronym(m.group(0)), text)
 
     return text
 
@@ -146,20 +146,33 @@ def expand_acronym(acronym: str) -> str:
     Rules:
     1. PRESERVE as-is: NASA
     2. SPLIT letter-by-letter: API, GPU, CPU, AI, ML, LLM, etc.
-    3. 3+ letters with consonant-vowel-consonant rest -> pronounceable: JSON -> J son
-    4. Otherwise split all letters.
+    3. ALWAYS SPELL: Malaysian university/org acronyms (UITM, UKM, etc.)
+    4. Pronounceable word (4+ letters, 30-60% vowels): MARA -> mara, FELDA -> felda
+    5. C-V-C pattern: JSON -> J son
+    6. Otherwise split all letters.
     """
-    rest = acronym[1:].lower()
     vowels = set("aeiou")
 
     PRESERVE_THESE = {"NASA"}  # noqa: N806
     if acronym in PRESERVE_THESE:
         return acronym
 
-    SPLIT_THESE = {"API", "GPU", "CPU", "AI", "ML", "DL", "NLP", "LLM", "RL"}  # noqa: N806
+    SPLIT_THESE = {"API", "GPU", "CPU", "AI", "ML", "DL", "NLP", "LLM", "RL", "PLUS"}  # noqa: N806
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
 
+    ALWAYS_SPELL = {"UITM", "UKM", "USM", "UTM", "UPNM", "IIUM", "UM", "UPM"}  # noqa: N806
+    if acronym in ALWAYS_SPELL:
+        return " ".join(list(acronym))
+
+    vowel_count = sum(1 for ch in acronym if ch.lower() in vowels)
+    vowel_ratio = vowel_count / len(acronym) if acronym else 0
+    has_consonants = any(ch.lower() not in vowels for ch in acronym)
+
+    if len(acronym) >= 4 and 0.3 <= vowel_ratio <= 0.6 and has_consonants:
+        return acronym.lower()
+
+    rest = acronym[1:].lower()
     has_vowel_in_middle = any(ch in vowels for ch in rest[1:-1])
     if len(rest) >= 3 and rest[0] not in vowels and rest[-1] not in vowels and has_vowel_in_middle:
         return f"{acronym[0]} {rest}"
