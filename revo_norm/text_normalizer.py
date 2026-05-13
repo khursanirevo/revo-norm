@@ -30,6 +30,8 @@ from revo_norm.malay_features import (
 )
 from revo_norm.normalizer_en import text_normalize as text_normalizer_en
 from revo_norm.normalizer_ms import normalize_malay as text_normalizer_ms
+from revo_norm.normalizer_zh import text_normalize_zh as text_normalizer_zh
+from revo_norm.normalizer_zh_my import text_normalize_zh_my as text_normalizer_zh_my
 from revo_norm.pronunciation_mappings import apply_pronunciation_mappings
 from revo_norm.tts_utils import parse_sound_word_field, smart_remove_sound_words
 
@@ -415,7 +417,8 @@ def normalize_text(
     text : str
         Input text to normalize.
     language : str
-        ``"en"`` for English, ``"ms"`` for Malay.
+        ``"en"`` for English, ``"ms"`` for Malay, ``"zh"`` for Chinese,
+        ``"zh_my"`` for Malaysian Chinese.
     profile : str or None
         One of ``"minimal"``, ``"basic"``, ``"standard"``, ``"aggressive"``.
         If *None* the standard profile (all features on) is used.
@@ -536,6 +539,10 @@ def normalize_text(
         protected_text = text_normalizer_en(protected_text)
     elif language == "ms":
         protected_text = text_normalizer_ms(protected_text)
+    elif language == "zh":
+        protected_text = text_normalizer_zh(protected_text)
+    elif language == "zh_my":
+        protected_text = text_normalizer_zh_my(protected_text)
 
     # Spacing normalization
     if cfg.spacing:

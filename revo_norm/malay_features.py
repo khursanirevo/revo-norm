@@ -206,7 +206,14 @@ def normalize_temperature(match: re.Match, language: str = "en") -> str:
     value = match.group(1).replace(",", ".")
     unit = match.group(2).lower()
 
-    if language == "en":
+    if language in ("zh", "zh_my"):
+        from revo_norm.num2word_zh import to_cardinal
+        unit_map = {"c": "摄氏度", "f": "华氏度", "k": "开尔文"}
+        num_val = float(value)
+        num_int = int(num_val)
+        cardinal = to_cardinal(num_int) if num_val == num_int else to_cardinal(num_val)
+        return f"{cardinal}{unit_map.get(unit, unit)}"
+    elif language == "en":
         value_spoken = normalize_en(value)
         unit_spoken = _TEMPERATURE_UNITS[unit]["en"]
         return f"{value_spoken} {unit_spoken}"
@@ -502,7 +509,7 @@ def normalize_measurements(text: str, language: str = "en") -> str:
 
     Args:
         text: Input text containing measurements
-        language: Language code ('en' or 'ms')
+        language: Language code ('en', 'ms', 'zh', 'zh_my')
 
     Returns:
         Text with measurements normalized
@@ -511,6 +518,13 @@ def normalize_measurements(text: str, language: str = "en") -> str:
         >>> normalize_measurements("5km 2kg 1000 sq ft", language="en")
         'five kilometers two kilograms one thousand square feet'
     """
+    if language in ("zh", "zh_my"):
+        from revo_norm.normalizer_zh import (
+            _measurement_re,
+            normalize_measurement,
+        )
+        return _measurement_re.sub(normalize_measurement, text)
+
     text = _DISTANCE_PATTERN.sub(lambda m: normalize_distance(m, language), text)
     text = _VOLUME_PATTERN.sub(lambda m: normalize_volume(m, language), text)
     text = _WEIGHT_PATTERN.sub(lambda m: normalize_weight(m, language), text)
