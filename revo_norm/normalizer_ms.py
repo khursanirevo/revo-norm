@@ -42,6 +42,7 @@ _months = {
 
 # Regex
 _date_re = re.compile(r"\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b")
+_date_ymd_re = re.compile(r"\b(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})\b")
 
 # Use shared currency K suffix pattern from currency_utils
 _currency_k_re = CURRENCY_K_SUFFIX_PATTERN
@@ -124,6 +125,12 @@ def normalize_time_no_meridian(m):
 
 def normalize_date(m):
     day, month, year = m.groups()
+    month_name = _months.get(month.lstrip("0"), month)
+    return f"{num2word(int(day))} {month_name} {num2word(int(year))}"
+
+
+def normalize_date_ymd(m):
+    year, month, day = m.groups()
     month_name = _months.get(month.lstrip("0"), month)
     return f"{num2word(int(day))} {month_name} {num2word(int(year))}"
 
@@ -233,6 +240,7 @@ def normalize_malay(text: str) -> str:
     text = re.sub(_currency_k_re, expand_currency_k_suffix, text)
 
     # Step 2: Process other entities
+    text = re.sub(_date_ymd_re, normalize_date_ymd, text)
     text = re.sub(_date_re, normalize_date, text)
     text = re.sub(_currency_re, normalize_currency, text)
     text = re.sub(_time_no_meridian_re, normalize_time_no_meridian, text)

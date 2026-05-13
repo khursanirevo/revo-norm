@@ -514,16 +514,19 @@ def normalize_text(
         from revo_norm.normalizer_ms import (
             _currency_re,
             _date_re,
+            _date_ymd_re,
             _percentage_re,
             _time_no_meridian_re,
             _time_re,
             normalize_currency,
             normalize_date,
+            normalize_date_ymd,
             normalize_percentage,
             normalize_time,
             normalize_time_no_meridian,
         )
 
+        text = _date_ymd_re.sub(normalize_date_ymd, text)
         text = _date_re.sub(normalize_date, text)
         text = _currency_re.sub(normalize_currency, text)
         text = _time_re.sub(normalize_time, text)
