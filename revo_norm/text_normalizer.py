@@ -255,7 +255,7 @@ def expand_acronym(acronym: str) -> str:
         return acronym
 
     # Special cases: always split (add more as we find them)
-    SPLIT_THESE = {"API", "GPU", "CPU", "AI", "ML", "DL", "NLP", "LLM", "RL"}  # noqa: N806
+    SPLIT_THESE = {"API", "GPU", "CPU", "AI", "ML", "DL", "NLP", "LLM", "RL", "PLUS"}  # noqa: N806
     if acronym in SPLIT_THESE:
         return " ".join(list(acronym))
     
