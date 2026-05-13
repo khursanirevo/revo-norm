@@ -294,7 +294,7 @@ class EntityExtractor:
     def _convert_entity_to_spoken(self, entity: Entity, language: str) -> str:
         """Convert an entity to its spoken form based on type and language."""
         # Import here to avoid circular dependencies
-        from revo_norm.malay_features import (
+        from revo_norm.shared_features import (
             normalize_fractions,
             normalize_hari_bulan_text,
             normalize_hijri_years,

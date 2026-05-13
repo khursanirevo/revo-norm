@@ -1,8 +1,8 @@
 """
-Malaya-inspired normalization utilities for text normalization.
+Shared feature normalizers for TTS text normalization.
 
-This module provides additional normalization features inspired by the Malaya library,
-including elongated words, fractions, temperature, and other common Malay patterns.
+Provides temperature, measurements, fractions, x-kali, hari bulan, hijri,
+and elongated word normalization for all supported languages (en, ms, zh, zh_my).
 """
 
 import re

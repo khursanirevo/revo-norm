@@ -23,16 +23,16 @@ from revo_norm.currency_utils import (
     expand_currency_m_suffix,
     expand_currency_t_suffix,
 )
-from revo_norm.malay_features import (
-    normalize_elongated_text,
-    normalize_measurements,
-    normalize_x_kali_text,
-)
 from revo_norm.normalizer_en import text_normalize as text_normalizer_en
 from revo_norm.normalizer_ms import normalize_malay as text_normalizer_ms
 from revo_norm.normalizer_zh import text_normalize_zh as text_normalizer_zh
 from revo_norm.normalizer_zh_my import text_normalize_zh_my as text_normalizer_zh_my
 from revo_norm.pronunciation_mappings import apply_pronunciation_mappings
+from revo_norm.shared_features import (
+    normalize_elongated_text,
+    normalize_measurements,
+    normalize_x_kali_text,
+)
 from revo_norm.tts_utils import parse_sound_word_field, smart_remove_sound_words
 
 if TYPE_CHECKING:
