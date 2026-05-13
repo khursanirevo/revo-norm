@@ -88,10 +88,9 @@ Rule-based entity-aware normalization with specific ordering requirements.
 | `normalizer_ms.py` | Malay normalization (grammar, vocabulary) | Custom number-to-words |
 | `entity_extractor.py` | Entity extraction system | All feature modules |
 | `pronunciation_mappings.py` | Explicit pronunciation mappings (HIGHEST PRIORITY) | None |
-| `malaya_inspired_utils.py` | Malaysian-specific features | None |
-| `abbreviation_utils.py` | Short form expansion (EN/MS mappings) | None |
+| `malay_features.py` | Malaysian-specific features (fractions, temperature, IC, measurements, etc.) | None |
 | `currency_utils.py` | Currency K-suffix expansion | None |
-| `num2word.py` | Malay number-to-words conversion | None |
+| `num2word_ms.py` | Malay number-to-words conversion | None |
 | `config.py` | Configuration system with profiles | None |
 
 ### Feature Organization
@@ -160,7 +159,7 @@ uv run pytest ../tests/revo-norm/ -v --tb=short
 
 ### Test Coverage
 - Current: ~66% overall
-- Malaya features: 80%
+- Malay features: 80%
 - English normalizer: 66%
 - Goal: 80%+
 
@@ -223,7 +222,7 @@ uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py
 
 - `revo_norm/abbreviation_utils.py` - Removed acronyms from abbreviation list, added single-letter/short uppercase abbreviation skipping
 - `revo_norm/pronunciation_mappings.py` - NEW module for explicit pronunciation mappings (highest priority in pipeline)
-- `revo_norm/malaya_inspired_utils.py` - Fixed fraction pattern, improved hari bulan
+- `revo_norm/malay_features.py` - Fixed fraction pattern, improved hari bulan
 - `revo_norm/text_normalizer.py` - Merged acronym handling, pre-compiled patterns, added entity extraction, added pronunciation mappings pipeline
 - `revo_norm/entity_extractor.py` - Added currency entity type and conversion
 - `revo_norm/config.py` - Added DATES and TIMES feature groups

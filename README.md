@@ -31,7 +31,7 @@ pip install revo-norm
 ### From Source (using uv - Recommended)
 
 ```bash
-git clone https://github.com/yourusername/revo-norm.git
+git clone https://github.com/khursanirevo/revo-norm.git
 cd revo-norm
 uv sync --all-extras
 ```
@@ -39,17 +39,14 @@ uv sync --all-extras
 ### From Source (using pip)
 
 ```bash
-git clone https://github.com/yourusername/revo-norm.git
+git clone https://github.com/khursanirevo/revo-norm.git
 cd revo-norm
-pip install -e ".[dev]"
+pip install -e .
 ```
 
 ## Quick Start
 
-> **⚠️ NOT FOR ASR:** This library normalizes text for **TTS (text → speech)**. It converts written text into spoken form (e.g., "RM100" → "seratus ringgit"). **DO NOT use** for ASR (speech → text) preprocessing.
-
-```python
-from revo_norm import normalize_text
+> **NOT FOR ASR:** This library normalizes text for **TTS (text to speech)**. It converts written text into spoken form (e.g., "RM100" to "seratus ringgit"). **DO NOT use** for ASR (speech to text) preprocessing.
 
 ```python
 from revo_norm import normalize_text
@@ -283,10 +280,10 @@ normalized = normalize_text(text, language="ms")
 uv sync --all-extras
 
 # Run tests
-uv run pytest
+uv run pytest ../tests/revo-norm/
 
 # Run tests with coverage
-uv run pytest --cov
+uv run pytest ../tests/revo-norm/ --cov
 ```
 
 ### Code Quality
@@ -312,13 +309,13 @@ uv run ruff check --fix revo_norm/
 
 ```bash
 # Run all tests (149 tests)
-uv run pytest
+uv run pytest ../tests/revo-norm/
 
 # Run with coverage
-uv run pytest --cov
+uv run pytest ../tests/revo-norm/ --cov
 
 # Run specific test
-uv run pytest tests/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
+uv run pytest ../tests/revo-norm/test_normalization_comprehensive.py::TestTemperature::test_english_celsius -v
 ```
 
 ### Test Coverage
@@ -378,7 +375,7 @@ Contributions are welcome! Please:
 2. Create a feature branch
 3. Make your changes
 4. Add tests for new features
-5. Ensure all tests pass (`uv run pytest`)
+5. Ensure all tests pass (`uv run pytest ../tests/revo-norm/`)
 6. Format code (`uv run ruff format`)
 7. Submit a pull request
 
@@ -390,12 +387,12 @@ Contributions are welcome! Please:
 ## Changelog
 
 ### 0.2.0-dev (Current)
-- Added Malay email language support (`@` → "di" in Malay)
+- Added Malay email language support (`@` to "di" in Malay)
 - Fixed 8 major pipeline contradictions
 - Implemented configuration system with profiles
 - Implemented entity extraction system (experimental)
-- Added 58 new tests (123 total)
-- Improved test coverage to 81%
+- Added pronunciation mappings system
+- 149 tests passing with 66% code coverage
 - Migrated to modern tooling (uv, ruff)
 - Cleaned up documentation files
 
