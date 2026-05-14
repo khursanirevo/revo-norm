@@ -97,6 +97,22 @@ def _expand_ussd_codes(text: str, language: str) -> str:
     return _USSD_RE.sub(_replace, text)
 
 
+# Numbers after these words should be read digit-by-digit (highway exits, gates, lots, etc.)
+_DIGIT_BY_DIGIT_CTX_RE = re.compile(
+    r"\b(exit|gate|lot|platform|bus\s+no|flight|stand|bay|block|blok)\s+(\d+)\b",
+    re.IGNORECASE,
+)
+
+
+def _expand_digit_by_digit_context(text: str, language: str) -> str:
+    """Expand numbers in specific contexts (exit, gate, lot, etc.) digit-by-digit."""
+    def _replace(m: re.Match) -> str:
+        prefix = m.group(1)
+        digits = " ".join(_digit_word(d, language) for d in m.group(2))
+        return f"{prefix} {digits}"
+    return _DIGIT_BY_DIGIT_CTX_RE.sub(_replace, text)
+
+
 # Digit-to-word mapping for URL speaking
 _DIGIT_WORDS = {
     "0": "zero",
@@ -504,6 +520,11 @@ def normalize_text(
     before = text
     text = _expand_ussd_codes(text, language)
     _track("ussd_codes", before, text)
+
+    # --- Step 1c: Digit-by-digit context (exit, gate, lot, etc.) ---
+    before = text
+    text = _expand_digit_by_digit_context(text, language)
+    _track("digit_by_digit_context", before, text)
 
     # --- Step 2: Entity extraction handles all entity patterns -----------
     # any URL/email regex processing, preventing pattern conflicts.
