@@ -182,7 +182,7 @@ def expand_acronym(acronym: str) -> str:
     """
     vowels = set("aeiou")
 
-    PRESERVE_THESE = {"NASA"}  # noqa: N806
+    PRESERVE_THESE = {"NASA", "PLUS"}  # noqa: N806
     if acronym in PRESERVE_THESE:
         return acronym
 
