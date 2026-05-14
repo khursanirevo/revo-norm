@@ -50,6 +50,16 @@ def _normalize_whitespace(text: str) -> str:
 normalize_whitespace = _normalize_whitespace
 
 
+def _digit_word(digit: str, language: str) -> str:
+    """Convert a single digit to its spoken word."""
+    if language == "ms":
+        return {
+            "0": "kosong", "1": "satu", "2": "dua", "3": "tiga", "4": "empat",
+            "5": "lima", "6": "enam", "7": "tujuh", "8": "lapan", "9": "sembilan",
+        }.get(digit, digit)
+    return _DIGIT_WORDS.get(digit, digit)
+
+
 def email_to_spoken(email: str, language: str = "en") -> str:
     """Convert an email address to spoken-friendly form for TTS."""
     spoken = email.replace("@", " at ")
@@ -57,6 +67,10 @@ def email_to_spoken(email: str, language: str = "en") -> str:
     spoken = spoken.replace("_", " underscore ")
     spoken = spoken.replace("+", " plus ")
     spoken = spoken.replace("-", " dash ")
+    spoken = re.sub(r"(?<=[a-zA-Z])(?=\d)|(?<=\d)(?=[a-zA-Z])", " ", spoken)
+    spoken = re.sub(
+        r"\d+", lambda m: " ".join(_digit_word(c, language) for c in m.group(0)), spoken
+    )
     return re.sub(r"\s+", " ", spoken).strip()
 
 
@@ -408,8 +422,9 @@ def normalize_text(
     language: str = "en",
     profile: Optional[str] = None,
     disable: Optional[list[str]] = None,
+    verbose: bool = False,
     **kwargs: object,
-) -> str:
+) -> str | dict:
     """Normalize *text* for TTS in the given *language*.
 
     Parameters
@@ -423,6 +438,9 @@ def normalize_text(
         If *None* the standard profile (all features on) is used.
     disable : list[str] or None
         Feature names to turn off, e.g. ``["acronyms", "measurements"]``.
+    verbose : bool
+        If *True*, return a dict with mappings and triggered rules instead of
+        just the normalized text string.
     **kwargs
         Legacy boolean flags — accepted for backward compatibility but emit
         a ``DeprecationWarning``.  Supported names:
@@ -436,21 +454,32 @@ def normalize_text(
 
     Returns
     -------
-    str
-        Normalized text.
+    str or dict
+        Normalized text, or a dict with ``text``, ``original``, ``mappings``,
+        and ``rules`` keys when *verbose* is *True*.
     """
     # --- Build config ------------------------------------------------
     cfg = _build_config(profile, disable, kwargs)
 
     text = text.strip()
     if not text:
-        return ""
+        return "" if not verbose else {"text": "", "original": "", "mappings": [], "rules": []}
+
+    original_text = text
+    _rules: list[str] = []
+    _mappings: list[dict] = []
+
+    def _track(step: str, before: str, after: str) -> None:
+        if after != before:
+            _rules.append(step)
 
     # --- Step 1: Currency K/M/B/T suffix expansion (always runs) -----
+    before = text
     text = CURRENCY_T_SUFFIX_PATTERN.sub(expand_currency_t_suffix, text)
     text = CURRENCY_B_SUFFIX_PATTERN.sub(expand_currency_b_suffix, text)
     text = CURRENCY_M_SUFFIX_PATTERN.sub(expand_currency_m_suffix, text)
     text = CURRENCY_K_SUFFIX_PATTERN.sub(expand_currency_k_suffix, text)
+    _track("currency_suffix", before, text)
 
     # --- Step 2: Entity extraction handles all entity patterns -----------
     # No need for Malay preprocessor — entity extraction runs before
@@ -473,6 +502,7 @@ def normalize_text(
     if cfg.temperature:
         always_extract.append(EntityType.TEMPERATURE)
     if cfg.fractions:
+        always_extract.append(EntityType.ADDRESS_SLASH)
         always_extract.append(EntityType.FRACTION)
     if cfg.x_kali:
         always_extract.append(EntityType.X_KALI)
@@ -492,6 +522,7 @@ def normalize_text(
     if cfg.temperature:
         speak_entities.add(EntityType.TEMPERATURE)
     if cfg.fractions:
+        speak_entities.add(EntityType.ADDRESS_SLASH)
         speak_entities.add(EntityType.FRACTION)
     if cfg.x_kali:
         speak_entities.add(EntityType.X_KALI)
@@ -509,8 +540,24 @@ def normalize_text(
     extractor = EntityExtractor()
     protected_text, _entities = extractor.extract(text, always_extract)
 
+    if verbose:
+        for entity in extractor.entities:
+            if entity.type in speak_entities:
+                spoken = extractor._convert_entity_to_spoken(entity, language)
+                if spoken != entity.text:
+                    rule_name = entity.type.value
+                    _mappings.append({
+                        "original": entity.text,
+                        "normalized": spoken,
+                        "rule": rule_name,
+                    })
+                    if rule_name not in _rules:
+                        _rules.append(rule_name)
+
     # --- Step 4: Pronunciation mappings (always, on protected text) --
+    before = protected_text
     protected_text = apply_pronunciation_mappings(protected_text, language)
+    _track("pronunciation_mappings", before, protected_text)
 
     # --- Step 5: Stash placeholders to protect from downstream processing --
     protected_text, ph_stash = _stash_placeholders(protected_text)
@@ -518,60 +565,91 @@ def normalize_text(
     # --- Step 6: Feature-gated processing on non-entity text ---------
     # Pronunciation overrides
     if cfg.pronunciation_overrides:
+        before = protected_text
         protected_text = apply_pronunciation_overrides(protected_text, language)
+        _track("pronunciation_overrides", before, protected_text)
 
     # Elongated words
     if cfg.elongated:
+        before = protected_text
         protected_text = normalize_elongated_text(protected_text)
+        _track("elongated_words", before, protected_text)
 
     # Measurements — MUST run before language normalizer and acronym expansion
     # to prevent "5km" → "five K M" (acronym split) instead of "five kilometers"
     if cfg.measurements:
+        before = protected_text
         protected_text = normalize_measurements(protected_text, language)
+        _track("measurements", before, protected_text)
 
     # X-kali — run before language normalizer for the same reason
     if cfg.x_kali:
+        before = protected_text
         protected_text = normalize_x_kali_text(protected_text, language)
+        _track("x_kali", before, protected_text)
 
     # Language-specific normalizer (always runs for contractions, numbers, etc.)
+    before = protected_text
     if language == "en":
         protected_text = text_normalizer_en(protected_text)
     elif language == "ms":
         protected_text = text_normalizer_ms(protected_text)
+    _track(f"language_normalizer_{language}", before, protected_text)
 
     # Spacing normalization
     if cfg.spacing:
+        before = protected_text
         protected_text = _normalize_whitespace(protected_text)
+        _track("spacing", before, protected_text)
 
     # Sound word removal
     if cfg.sound_words:
         sound_word_tuples = parse_sound_word_field("\n".join(cfg.sound_words))
         if sound_word_tuples:
+            before = protected_text
             protected_text = smart_remove_sound_words(protected_text, sound_word_tuples)
+            _track("sound_words", before, protected_text)
 
     # Strip all bracketed content like [laughter], [music], etc. (aggressive profile)
     if cfg.strip_bracketed:
+        before = protected_text
         protected_text = re.sub(r"\[[^\]]*\]\s*", "", protected_text)
+        _track("strip_bracketed", before, protected_text)
 
     # Abbreviation expansion (currently no-op)
     if cfg.abbreviations:
+        before = protected_text
         protected_text = expand_abbreviations(protected_text, language)
+        _track("abbreviations", before, protected_text)
 
     # Acronym expansion
     if cfg.acronyms:
+        before = protected_text
         protected_text = replace_letter_period_sequences(protected_text, process_acronyms=True)
+        _track("acronyms", before, protected_text)
 
     # Comma insertion for repeated words (always)
+    before = protected_text
     protected_text = insert_comma_after_repeated_words(protected_text, min_repeat=3)
+    _track("comma_insertion", before, protected_text)
 
     # Special character replacement
     if cfg.special_chars:
+        before = protected_text
         protected_text = special_replace(protected_text, language)
+        _track("special_chars", before, protected_text)
 
     # --- Step 7: Restore placeholders then entities as spoken form ---
     protected_text = _unstash_placeholders(protected_text, ph_stash)
     result = _restore_entities(protected_text, extractor, speak_entities, language)
 
+    if verbose:
+        return {
+            "text": result,
+            "original": original_text,
+            "mappings": _mappings,
+            "rules": _rules,
+        }
     return result
 
 

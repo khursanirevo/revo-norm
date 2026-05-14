@@ -33,6 +33,7 @@ class EntityType(str, Enum):
     HARI_BULAN = "hari_bulan"
     HIJRI = "hijri"
     X_KALI = "x_kali"
+    ADDRESS_SLASH = "address_slash"
 
 
 @dataclass
@@ -81,6 +82,7 @@ class EntityExtractor:
             EntityType.TIME: self._compile_time_patterns(),
             # Existing Malaya features
             EntityType.TEMPERATURE: self._compile_temperature_patterns(),
+            EntityType.ADDRESS_SLASH: self._compile_address_slash_patterns(),
             EntityType.FRACTION: self._compile_fraction_patterns(),
             EntityType.X_KALI: self._compile_x_kali_patterns(),
             EntityType.IC: self._compile_ic_patterns(),
@@ -180,6 +182,14 @@ class EntityExtractor:
         Matches: 10/4, 3/4 but NOT 15/08/2025
         """
         return re.compile(r"(?<![\d/])(\d+)\s*/\s*(\d+)(?![/\d])")
+
+    def _compile_address_slash_patterns(self) -> re.Pattern:
+        """Compile address slash patterns (e.g., Jalan Setia 3/4)."""
+        return re.compile(
+            r"\b(?:Jalan|Lorong|Taman|Bukit|Kampung|Tingkat|Lintang|"
+            r"Pesisir|Persiaran|Lebuh|Medan|Lengkung|Halaman)\s+\S+\s+(\d+)\s*/\s*(\d+)\b",
+            re.IGNORECASE,
+        )
 
     def _compile_x_kali_patterns(self) -> re.Pattern:
         """Compile x-kali multiplier patterns."""
@@ -327,6 +337,9 @@ class EntityExtractor:
             # Call the normalize_fractions function with the entity text
             return normalize_fractions(entity.text, language)
 
+        if entity.type == EntityType.ADDRESS_SLASH:
+            return self._convert_address_slash_to_spoken(entity.text, language)
+
         if entity.type == EntityType.X_KALI:
             # Call the normalize_x_kali_text function with the entity text
             return normalize_x_kali_text(entity.text, language)
@@ -345,6 +358,20 @@ class EntityExtractor:
 
         # Fallback: return original text
         return entity.text
+
+    def _convert_address_slash_to_spoken(self, address_text: str, language: str) -> str:
+        """Convert address slash pattern (e.g., 'Jalan Setia 3/4') to spoken form."""
+        from revo_norm.normalizer_en import text_normalize as normalize_en
+        from revo_norm.normalizer_ms import normalize_malay as normalize_ms
+
+        normalize = normalize_ms if language == "ms" else normalize_en
+        match = re.search(r"(\d+)\s*/\s*(\d+)", address_text)
+        if match:
+            left = normalize(match.group(1))
+            right = normalize(match.group(2))
+            slash_spoken = f"{left} slash {right}"
+            return re.sub(r"\d+\s*/\s*\d+", slash_spoken, address_text)
+        return address_text
 
     def _convert_date_to_spoken(self, date_text: str, language: str) -> str:
         """Convert a date to spoken form."""
