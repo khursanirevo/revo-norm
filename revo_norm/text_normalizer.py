@@ -15,9 +15,13 @@ from typing import TYPE_CHECKING, Optional
 from revo_norm.config import Config
 from revo_norm.currency_utils import (
     CURRENCY_B_SUFFIX_PATTERN,
+    CURRENCY_JUTA_PATTERN,
     CURRENCY_K_SUFFIX_PATTERN,
     CURRENCY_M_SUFFIX_PATTERN,
+    CURRENCY_MILIAR_PATTERN,
+    CURRENCY_RIBU_PATTERN,
     CURRENCY_T_SUFFIX_PATTERN,
+    CURRENCY_TRILION_PATTERN,
     expand_currency_b_suffix,
     expand_currency_k_suffix,
     expand_currency_m_suffix,
@@ -80,6 +84,17 @@ _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", r
 def convert_emails_to_spoken(text: str, language: str = "en") -> str:
     """Replace all email addresses in *text* with spoken form."""
     return _EMAIL_RE.sub(lambda m: email_to_spoken(m.group(0), language), text)
+
+
+_USSD_RE = re.compile(r"\*(\d+)#")
+
+
+def _expand_ussd_codes(text: str, language: str) -> str:
+    """Expand USSD codes (*120#) to digit-by-digit spoken form."""
+    def _replace(m: re.Match) -> str:
+        digits = " ".join(_digit_word(d, language) for d in m.group(1))
+        return f"star {digits} hash"
+    return _USSD_RE.sub(_replace, text)
 
 
 # Digit-to-word mapping for URL speaking
@@ -473,16 +488,24 @@ def normalize_text(
         if after != before:
             _rules.append(step)
 
-    # --- Step 1: Currency K/M/B/T suffix expansion (always runs) -----
+    # --- Step 1: Currency suffix expansion (always runs) -----
     before = text
     text = CURRENCY_T_SUFFIX_PATTERN.sub(expand_currency_t_suffix, text)
+    text = CURRENCY_TRILION_PATTERN.sub(expand_currency_t_suffix, text)
     text = CURRENCY_B_SUFFIX_PATTERN.sub(expand_currency_b_suffix, text)
+    text = CURRENCY_MILIAR_PATTERN.sub(expand_currency_b_suffix, text)
     text = CURRENCY_M_SUFFIX_PATTERN.sub(expand_currency_m_suffix, text)
+    text = CURRENCY_JUTA_PATTERN.sub(expand_currency_m_suffix, text)
     text = CURRENCY_K_SUFFIX_PATTERN.sub(expand_currency_k_suffix, text)
+    text = CURRENCY_RIBU_PATTERN.sub(expand_currency_k_suffix, text)
     _track("currency_suffix", before, text)
 
+    # --- Step 1b: USSD code expansion (before number normalization) ---
+    before = text
+    text = _expand_ussd_codes(text, language)
+    _track("ussd_codes", before, text)
+
     # --- Step 2: Entity extraction handles all entity patterns -----------
-    # No need for Malay preprocessor — entity extraction runs before
     # any URL/email regex processing, preventing pattern conflicts.
 
     # --- Step 3: Entity extraction → placeholders --------------------
@@ -492,6 +515,8 @@ def normalize_text(
     always_extract = [
         EntityType.EMAIL,
         EntityType.URL,
+        EntityType.PHONE,
+        EntityType.VERSION,
         EntityType.CURRENCY,
         # DATE and TIME always extracted to protect from language normalizer
         # (EN normalizer has its own date/time regexes)
@@ -517,6 +542,8 @@ def normalize_text(
     speak_entities: set[object] = {
         EntityType.EMAIL,
         EntityType.URL,
+        EntityType.PHONE,
+        EntityType.VERSION,
         EntityType.CURRENCY,
     }
     if cfg.temperature:
