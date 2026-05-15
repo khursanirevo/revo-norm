@@ -97,9 +97,17 @@ def _expand_ussd_codes(text: str, language: str) -> str:
     return _USSD_RE.sub(_replace, text)
 
 
-# Numbers after these words should be read digit-by-digit (highway exits, gates, lots, etc.)
+# Numbers after these words should be read digit-by-digit
 _DIGIT_BY_DIGIT_CTX_RE = re.compile(
-    r"\b(exit|gate|lot|platform|bus\s+no|flight|stand|bay|block|blok)\s+(\d+)\b",
+    r"\b(exit|gate|lot|platform|bus\s+no|flight|stand|bay|block|blok)"
+    r"\s+(\d+)\b",
+    re.IGNORECASE,
+)
+
+# Product/model names with 3+ digit numbers read digit-by-digit
+_PRODUCT_DIGIT_CTX_RE = re.compile(
+    r"\b(Office|Windows|PlayStation|PS|Xbox|iPhone|iPad|Galaxy|Pixel|Model|MacBook|AirPods)"
+    r"\s+(\d{3,})\b",
     re.IGNORECASE,
 )
 
@@ -110,7 +118,9 @@ def _expand_digit_by_digit_context(text: str, language: str) -> str:
         prefix = m.group(1)
         digits = " ".join(_digit_word(d, language) for d in m.group(2))
         return f"{prefix} {digits}"
-    return _DIGIT_BY_DIGIT_CTX_RE.sub(_replace, text)
+    text = _DIGIT_BY_DIGIT_CTX_RE.sub(_replace, text)
+    text = _PRODUCT_DIGIT_CTX_RE.sub(_replace, text)
+    return text
 
 
 # Digit-to-word mapping for URL speaking
